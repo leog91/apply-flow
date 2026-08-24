@@ -1,5 +1,10 @@
 import { cleanDisplayText } from '@/lib/normalization/text';
 import { extractTechnologyKeywords } from '@/lib/extraction/technology-keywords';
+import {
+  extractDescriptionSection,
+  inferLocation,
+  inferWorkMode,
+} from '@/lib/extraction/job-attributes';
 import type { JobPageParser } from './types';
 
 function comparisonValue(value: string): string {
@@ -89,7 +94,20 @@ export const genericParser: JobPageParser = {
       hiringCompany ??
       (platformTitle || companySiteTitle ? titleParts[1] : undefined) ??
       siteCompany;
-    const stack = extractTechnologyKeywords(context.jobSectionText ?? context.pageText);
+    const boundedDomDescription = context.jobDescriptionText
+      ? extractDescriptionSection(context.jobDescriptionText) ?? context.jobDescriptionText
+      : undefined;
+    const descriptionText =
+      context.jobSectionText ??
+      boundedDomDescription ??
+      extractDescriptionSection(context.bodyText ?? '');
+    const scopedStack = extractTechnologyKeywords(descriptionText ?? context.pageText);
+    const stack =
+      scopedStack.length > 0 || !context.bodyText
+        ? scopedStack
+        : extractTechnologyKeywords(
+            extractDescriptionSection(context.bodyText) ?? context.pageText,
+          );
     const position = cleanDisplayText(
       embeddedPosition ??
         (hiringCompany ? context.headings[0] : matchingHeading) ??
@@ -98,11 +116,34 @@ export const genericParser: JobPageParser = {
         context.openGraph.title ??
         context.title,
     );
+    const location = inferLocation(
+      [context.headingContext, context.jobSectionText, context.pageText]
+        .filter(Boolean)
+        .join('\n'),
+      position || undefined,
+      company,
+      context.title,
+    );
+    const workMode = inferWorkMode(
+      [
+        context.title,
+        position,
+        context.headingContext,
+        context.jobSectionText,
+        context.jobDescriptionText,
+        context.bodyText,
+        context.pageText,
+      ]
+        .filter(Boolean)
+        .join('\n'),
+    );
 
     return {
       candidate: {
         company: company || undefined,
         position: position || undefined,
+        location,
+        workMode,
         stack: stack.length > 0 ? stack : undefined,
       },
       source: embeddedPosition

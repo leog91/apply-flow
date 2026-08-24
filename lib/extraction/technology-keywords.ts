@@ -18,7 +18,7 @@ const TECHNOLOGY_CATEGORIES = {
   'Data & APIs': [
     'SQL', 'PostgreSQL', 'MySQL', 'SQL Server', 'MongoDB', 'Redis',
     'Elasticsearch', 'Oracle', 'Snowflake', 'Prisma', 'GraphQL', 'REST',
-    'Kafka', 'RabbitMQ', 'Spark',
+    'WebSockets', 'Kafka', 'RabbitMQ', 'Spark',
   ],
   'Cloud & infrastructure': [
     'AWS', 'Azure', 'Google Cloud', 'Docker', 'Kubernetes', 'Terraform', 'Helm',
@@ -96,6 +96,7 @@ const TECHNOLOGY_KEYWORDS: TechnologyKeyword[] = [
   { name: 'Prisma', patterns: [/\bPrisma\b/i] },
   { name: 'GraphQL', patterns: [/\bGraphQL\b/i] },
   { name: 'REST', patterns: [/\bREST(?:ful)?\b/] },
+  { name: 'WebSockets', patterns: [/\bWebSockets?\b/i] },
   { name: 'Kafka', patterns: [/\bKafka\b/i] },
   { name: 'RabbitMQ', patterns: [/\bRabbitMQ\b/i] },
   { name: 'Spark', patterns: [/\bApache Spark\b/i, /\bPySpark\b/i] },

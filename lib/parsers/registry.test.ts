@@ -57,6 +57,8 @@ describe('parseJobPage', () => {
       url: 'https://www.examplejobs.test/jobs/view/12345?trk=public_jobs',
       title: 'Platform Engineer | Example Company | ExampleJobs',
       headings: ['About the job'],
+      headingContext:
+        'Platform Engineer\nExample Company\nSample City, Sample Region · Hybrid',
       pageText: '',
       openGraph: {},
       jsonLdScripts: [],
@@ -66,6 +68,8 @@ describe('parseJobPage', () => {
       company: 'Example Company',
       position: 'Platform Engineer',
       sourceHost: 'examplejobs.test',
+      location: 'Sample City, Sample Region',
+      workMode: 'Hybrid',
       url: 'https://www.examplejobs.test/jobs/view/12345',
     });
   });
@@ -145,5 +149,56 @@ describe('parseJobPage', () => {
     expect(result.candidate.stack).not.toEqual(
       expect.arrayContaining(['Azure', 'PHP', 'Python', 'LLM']),
     );
+  });
+
+  it('uses a bounded job description and position label for stack and work mode', () => {
+    const result = parseJobPage({
+      url: 'https://examplejobs.test/jobs/view/12345',
+      title: 'Frontend Engineer (Presencial) | Example Company | ExampleJobs',
+      headings: ['Frontend Engineer (Presencial)'],
+      pageText: 'Unrelated sidebar mentions Python and AWS.',
+      jobDescriptionText:
+        'About the job. Angular, TypeScript, REST, WebSockets, CI/CD and GitHub Actions.',
+      openGraph: {},
+      jsonLdScripts: [],
+    });
+
+    expect(result.candidate).toMatchObject({
+      position: 'Frontend Engineer (Presencial)',
+      workMode: 'On-site',
+      stack: [
+        'TypeScript',
+        'Angular',
+        'REST',
+        'WebSockets',
+        'GitHub Actions',
+        'CI/CD',
+      ],
+    });
+    expect(result.candidate.stack).not.toEqual(
+      expect.arrayContaining(['Python', 'AWS']),
+    );
+  });
+
+  it('falls back to a visible body description when no DOM section was captured', () => {
+    const result = parseJobPage({
+      url: 'https://examplejobs.test/jobs/view/12345',
+      title: 'Platform Engineer | Example Company | ExampleJobs',
+      headings: ['Platform Engineer'],
+      pageText: 'Page shell without technologies.',
+      bodyText:
+        'Navigation\nAbout the job\nAngular TypeScript REST WebSockets CI/CD GitHub Actions\nAbout the company\nMongoDB partner\nSimilar jobs\nPython AWS',
+      openGraph: {},
+      jsonLdScripts: [],
+    });
+
+    expect(result.candidate.stack).toEqual([
+      'TypeScript',
+      'Angular',
+      'REST',
+      'WebSockets',
+      'GitHub Actions',
+      'CI/CD',
+    ]);
   });
 });

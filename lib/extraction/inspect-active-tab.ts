@@ -41,6 +41,37 @@ function inspectPage() {
   const subheadingElements = Array.from(
     document.querySelectorAll<HTMLHeadingElement>('main h3, [role="main"] h3, article h3'),
   );
+  const primaryHeading = document.querySelector<HTMLHeadingElement>('h1');
+  const headingContext = primaryHeading
+    ? (() => {
+        let container = primaryHeading.parentElement;
+        while (container && container !== document.body) {
+          const text = container.innerText.trim();
+          const lineCount = text.split(/\n+/).filter((line) => line.trim()).length;
+          if (lineCount >= 3) return text.slice(0, 2_000);
+          container = container.parentElement;
+        }
+        return primaryHeading.parentElement?.innerText.slice(0, 2_000);
+      })()
+    : undefined;
+  const descriptionHeading = Array.from(
+    document.querySelectorAll<HTMLHeadingElement>('h1, h2, h3, h4'),
+  ).find((heading) =>
+    /^(?:about the job|about this role|job description|role description|descripci(?:o|\u00f3)n del (?:empleo|puesto)|acerca del empleo|sobre el puesto)$/i.test(
+      heading.textContent?.replace(/\s+/g, ' ').trim() ?? '',
+    ),
+  );
+  const jobDescriptionText = descriptionHeading
+    ? (() => {
+        let container = descriptionHeading.parentElement;
+        while (container && container !== document.body) {
+          const text = container.innerText.trim();
+          if (text.length >= 300) return text.slice(0, 50_000);
+          container = container.parentElement;
+        }
+        return undefined;
+      })()
+    : undefined;
   const jobSectionText =
     subheadingElements.length === 1
       ? (() => {
@@ -60,6 +91,7 @@ function inspectPage() {
   return {
     url: window.location.href,
     title: document.title,
+    bodyText: document.body.innerText.slice(0, 200_000),
     pageText: (
       document.querySelector<HTMLElement>('main, [role="main"], article')?.innerText ??
       document.body.innerText
@@ -74,11 +106,13 @@ function inspectPage() {
         Boolean(heading) && headings.indexOf(heading) === index,
       )
       .slice(0, 20),
+    headingContext,
     subheadings: subheadingElements
       .map((heading) => heading.textContent?.replace(/\s+/g, ' ').trim() ?? '')
       .filter(Boolean)
       .slice(0, 20),
     jobSectionText,
+    jobDescriptionText,
     canonicalUrl: document
       .querySelector<HTMLLinkElement>('link[rel="canonical"]')
       ?.href.trim(),

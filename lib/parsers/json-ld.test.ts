@@ -7,6 +7,16 @@ const posting = {
   title: ' Senior   Software Engineer ',
   hiringOrganization: { '@type': 'Organization', name: 'Example Company' },
   url: 'https://jobs.example.com/123',
+  jobLocation: {
+    '@type': 'Place',
+    address: {
+      '@type': 'PostalAddress',
+      addressLocality: 'Sample City',
+      addressRegion: 'Sample Region',
+      addressCountry: { name: 'Sample Country' },
+    },
+  },
+  jobLocationType: 'TELECOMMUTE',
 };
 
 describe('extractJobPostings', () => {
@@ -16,7 +26,8 @@ describe('extractJobPostings', () => {
         company: 'Example Company',
         position: 'Senior Software Engineer',
         url: 'https://jobs.example.com/123',
-        city: undefined,
+        location: 'Sample City, Sample Region, Sample Country',
+        workMode: 'Remote',
       },
     ]);
   });

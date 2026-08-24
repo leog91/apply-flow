@@ -6,7 +6,8 @@ export interface JobPostingData {
   company?: string;
   position?: string;
   url?: string;
-  city?: string;
+  location?: string;
+  workMode?: 'Remote';
 }
 
 function isObject(value: unknown): value is JsonObject {
@@ -46,12 +47,29 @@ function organizationName(value: unknown): string | undefined {
   return isObject(value) ? stringValue(value.name) : undefined;
 }
 
-function locationCity(value: unknown): string | undefined {
+function locationText(value: unknown): string | undefined {
   const location = Array.isArray(value) ? value[0] : value;
   if (!isObject(location)) return undefined;
   const address = location.address;
   if (typeof address === 'string') return stringValue(address);
-  return isObject(address) ? stringValue(address.addressLocality) : undefined;
+  if (!isObject(address)) return undefined;
+
+  const country = isObject(address.addressCountry)
+    ? stringValue(address.addressCountry.name)
+    : stringValue(address.addressCountry);
+  const parts = [
+    stringValue(address.addressLocality),
+    stringValue(address.addressRegion),
+    country,
+  ].filter((part): part is string => Boolean(part));
+  return [...new Set(parts)].join(', ') || undefined;
+}
+
+function isRemote(value: unknown): boolean {
+  const values = Array.isArray(value) ? value : [value];
+  return values.some(
+    (item) => typeof item === 'string' && item.toUpperCase().includes('TELECOMMUTE'),
+  );
 }
 
 export function extractJobPostings(jsonLdScripts: string[]): JobPostingData[] {
@@ -69,6 +87,7 @@ export function extractJobPostings(jsonLdScripts: string[]): JobPostingData[] {
     company: organizationName(posting.hiringOrganization),
     position: stringValue(posting.title),
     url: stringValue(posting.url),
-    city: locationCity(posting.jobLocation),
+    location: locationText(posting.jobLocation),
+    workMode: isRemote(posting.jobLocationType) ? 'Remote' : undefined,
   }));
 }

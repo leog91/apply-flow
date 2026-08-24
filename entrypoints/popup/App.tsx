@@ -57,6 +57,13 @@ function App() {
     setCandidate((current) => ({ ...current, [field]: value }));
   }
 
+  function updateOptionalField(
+    field: 'location' | 'workMode',
+    value: string,
+  ) {
+    setCandidate((current) => ({ ...current, [field]: value || undefined }));
+  }
+
   function addTechnology(event: React.FormEvent) {
     event.preventDefault();
     const technology = newTechnology.trim();
@@ -108,6 +115,28 @@ function App() {
               onChange={(event) => updateField('position', event.target.value)}
               placeholder="Job title"
             />
+          </label>
+        </div>
+        <div className="two-column">
+          <label>
+            Location
+            <input
+              value={candidate.location ?? ''}
+              onChange={(event) => updateOptionalField('location', event.target.value)}
+              placeholder="City, region, or country"
+            />
+          </label>
+          <label>
+            Work arrangement
+            <select
+              value={candidate.workMode ?? ''}
+              onChange={(event) => updateOptionalField('workMode', event.target.value)}
+            >
+              <option value="">Not specified</option>
+              <option value="Remote">Remote</option>
+              <option value="Hybrid">Hybrid</option>
+              <option value="On-site">On-site</option>
+            </select>
           </label>
         </div>
         <label>

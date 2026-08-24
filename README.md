@@ -4,7 +4,7 @@ Apply Flow is a personal browser extension for capturing job listing information
 
 ## Current Milestone
 
-Milestone 1 inspects the active job-listing page, extracts Company, Position, Job URL, and explicitly mentioned technologies, and presents them as editable popup fields. Technology extraction uses a deterministic keyword catalog rather than AI. It does not connect to Google Sheets or submit application data.
+Milestone 1 inspects the active job-listing page, extracts Company, Position, Location, Work Arrangement, Job URL, and explicitly mentioned technologies, and presents them as editable popup fields. Technology extraction uses a deterministic keyword catalog rather than AI. It does not connect to Google Sheets or submit application data.
 
 ## Stack
 
