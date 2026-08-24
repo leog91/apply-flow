@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import { extractFromActiveTab } from '@/lib/extraction/inspect-active-tab';
 import { groupTechnologies } from '@/lib/extraction/technology-keywords';
+import { buildApplicationClipboardRow } from '@/lib/google-sheets/clipboard-row';
 import type { ApplicationCandidate } from '@/lib/schemas/application-candidate';
 import type { ExtractionMetadata } from '@/lib/parsers/types';
+import ApplicationHistory from './ApplicationHistory';
 import './App.css';
 
 const EMPTY_CANDIDATE: ApplicationCandidate = {
@@ -19,6 +21,8 @@ function App() {
   const [message, setMessage] = useState('Inspecting the current page...');
   const [statusKind, setStatusKind] = useState<'loading' | 'success' | 'neutral' | 'error'>('loading');
   const [loading, setLoading] = useState(true);
+  const [historyLookupKey, setHistoryLookupKey] = useState(0);
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'error'>('idle');
 
   async function detect() {
     setLoading(true);
@@ -41,6 +45,7 @@ function App() {
             : 'No job listing detected. You can enter the details manually.',
       );
       setStatusKind(detailsDetected ? 'success' : 'neutral');
+      setHistoryLookupKey((current) => current + 1);
     } else {
       setMetadata(undefined);
       setMessage(extraction.message);
@@ -54,6 +59,7 @@ function App() {
   }, []);
 
   function updateField(field: 'company' | 'position' | 'url', value: string) {
+    setCopyStatus('idle');
     setCandidate((current) => ({ ...current, [field]: value }));
   }
 
@@ -61,6 +67,7 @@ function App() {
     field: 'location' | 'workMode',
     value: string,
   ) {
+    setCopyStatus('idle');
     setCandidate((current) => ({ ...current, [field]: value || undefined }));
   }
 
@@ -68,6 +75,7 @@ function App() {
     event.preventDefault();
     const technology = newTechnology.trim();
     if (!technology) return;
+    setCopyStatus('idle');
     setTechnologies((current) =>
       current.some((item) => item.toLocaleLowerCase() === technology.toLocaleLowerCase())
         ? current
@@ -77,7 +85,19 @@ function App() {
   }
 
   function removeTechnology(technology: string) {
+    setCopyStatus('idle');
     setTechnologies((current) => current.filter((item) => item !== technology));
+  }
+
+  async function copyApplicationRow() {
+    try {
+      await navigator.clipboard.writeText(
+        buildApplicationClipboardRow(candidate, technologies),
+      );
+      setCopyStatus('copied');
+    } catch {
+      setCopyStatus('error');
+    }
   }
 
   const technologyGroups = groupTechnologies(technologies);
@@ -150,6 +170,11 @@ function App() {
         </label>
       </div>
 
+      <ApplicationHistory
+        candidate={candidate}
+        autoLookupKey={historyLookupKey}
+      />
+
       <section className="technologies" aria-labelledby="technologies-heading">
         <div className="section-heading">
           <h2 id="technologies-heading">Technologies mentioned</h2>
@@ -190,6 +215,21 @@ function App() {
           <button className="add-button" type="submit">Add</button>
         </form>
       </section>
+
+      <div className="copy-row-action">
+        <button
+          type="button"
+          onClick={() => void copyApplicationRow()}
+          disabled={!candidate.company && !candidate.position}
+        >
+          {copyStatus === 'copied' ? 'Row copied' : 'Copy row for Sheets'}
+        </button>
+        <span aria-live="polite">
+          {copyStatus === 'error'
+            ? 'Could not access the clipboard.'
+            : 'Paste into column A of an empty Applications row.'}
+        </span>
+      </div>
 
       {metadata && (
         <details className="extraction-details" open>

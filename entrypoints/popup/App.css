@@ -117,6 +117,88 @@ select:focus {
   padding-top: 15px;
 }
 
+.history {
+  margin-top: 18px;
+  border-top: 1px solid #d8d5c9;
+  padding-top: 15px;
+}
+
+.history-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-radius: 7px;
+  padding: 9px 10px;
+  color: #596059;
+  background: #eceae1;
+  font-size: 11px;
+}
+
+.history-status.success { color: #315637; background: #e1ebde; }
+.history-status.error { color: #8a3b32; background: #f3e1dc; }
+.history-status.loading { color: #526752; background: #e5eadf; }
+.history-status p { margin: 0; }
+
+.history-status button,
+.history-settings button {
+  flex: none;
+  border: 0;
+  border-radius: 5px;
+  padding: 6px 9px;
+  color: white;
+  background: #355b3b;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.history-highlight {
+  display: grid;
+  gap: 3px;
+  margin-top: 8px;
+  border-left: 3px solid #b7832f;
+  padding: 7px 9px;
+  color: #5f4b28;
+  background: #f5ead4;
+  font-size: 11px;
+}
+
+.history-highlight.exact {
+  border-left-color: #9b4b3f;
+  color: #713c34;
+  background: #f3dfda;
+}
+
+.history-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.history-list div {
+  display: grid;
+  gap: 2px;
+  border: 1px solid #dad8ce;
+  border-radius: 6px;
+  padding: 7px 8px;
+  font-size: 10px;
+}
+
+.history-list span { color: #777c76; }
+
+.history-settings {
+  margin-top: 9px;
+  color: #6f756f;
+  font-size: 10px;
+}
+
+.history-settings summary { width: fit-content; cursor: pointer; font-weight: 650; }
+.history-settings form { display: flex; gap: 7px; margin-top: 7px; }
+.history-settings input { padding: 7px 9px; font-size: 11px; }
+.history-settings p { margin: 6px 0 0; }
+
 .section-heading {
   display: flex;
   align-items: baseline;
@@ -195,6 +277,32 @@ select:focus {
 
 .add-technology input { padding: 7px 9px; font-size: 12px; }
 .add-button { padding: 7px 12px; }
+
+.copy-row-action {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 16px;
+  border-top: 1px solid #d8d5c9;
+  padding-top: 14px;
+}
+
+.copy-row-action button {
+  flex: none;
+  border: 0;
+  border-radius: 6px;
+  padding: 9px 13px;
+  color: white;
+  background: #355b3b;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.copy-row-action button:hover:not(:disabled) { background: #28482e; }
+.copy-row-action button:disabled { cursor: not-allowed; opacity: .5; }
+.copy-row-action span { color: #717771; font-size: 10px; }
 
 .extraction-details {
   margin-top: 14px;
