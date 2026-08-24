@@ -3,10 +3,12 @@ import type { JobPageContext } from '@/lib/schemas/job-page-context';
 import { cleanDisplayText } from '@/lib/normalization/text';
 import { getSourceHost, selectJobUrl } from '@/lib/normalization/url';
 import { genericParser } from './generic-parser';
+import { embeddedJobParser } from './embedded-job-parser';
 import { schemaOrgParser } from './schema-org-parser';
 import type { ExtractionResult, JobPageParser, ParserOutput } from './types';
 
 export const parserRegistry: JobPageParser[] = [
+  embeddedJobParser,
   schemaOrgParser,
   genericParser,
 ];

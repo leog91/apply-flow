@@ -2,6 +2,40 @@ import { describe, expect, it } from 'vitest';
 import { parseJobPage } from './registry';
 
 describe('parseJobPage', () => {
+  it('prefers a structured job loaded by an embedded board', () => {
+    const result = parseJobPage({
+      url: 'https://careers.synthetic.test/job?job_id=42&source=mail',
+      title: 'Job Position | Synthetic Labs',
+      headings: ['What We Do'],
+      pageText: 'Generic company navigation content.',
+      canonicalUrl: 'https://careers.synthetic.test/job',
+      selectedJobUrl: 'https://careers.synthetic.test/job?job_id=42',
+      embeddedJob: {
+        company: 'Synthetic Labs',
+        position: 'Platform Engineer',
+        location: 'Example City, Spain',
+        url: 'https://careers.synthetic.test/job?job_id=42',
+        description: 'Hybrid role using React, TypeScript, CSS, AWS and Node.js.',
+      },
+      openGraph: { siteName: 'Synthetic Labs' },
+      jsonLdScripts: [],
+    });
+
+    expect(result.candidate).toMatchObject({
+      company: 'Synthetic Labs',
+      position: 'Platform Engineer',
+      location: 'Example City, Spain',
+      workMode: 'Hybrid',
+      stack: ['TypeScript', 'React', 'Node.js', 'CSS', 'AWS'],
+      url: 'https://careers.synthetic.test/job?job_id=42',
+    });
+    expect(result.metadata).toMatchObject({
+      confidence: 'high',
+      structured: true,
+    });
+    expect(result.metadata.parsers[0]).toBe('embedded-job-board');
+  });
+
   it('layers structured data with generic URL source tracking', () => {
     const result = parseJobPage({
       url: 'https://careers.acme.com/apply/engineer?utm_source=mail',

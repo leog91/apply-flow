@@ -9,7 +9,10 @@ export default defineConfig({
       name: 'Apply Flow',
       description: 'Capture job listing details for review.',
       permissions: ['activeTab', 'clipboardWrite', 'identity', 'scripting', 'storage'],
-      host_permissions: ['https://sheets.googleapis.com/*'],
+      host_permissions: [
+        'https://boards-api.greenhouse.io/*',
+        'https://sheets.googleapis.com/*',
+      ],
       ...(googleOAuthClientId
         ? {
             oauth2: {

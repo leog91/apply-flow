@@ -1,6 +1,7 @@
 import { parseJobPage } from '@/lib/parsers/registry';
 import { JobPageContextSchema } from '@/lib/schemas/job-page-context';
 import type { ExtractionResult } from '@/lib/parsers/types';
+import { enrichEmbeddedJob } from './embedded-job';
 
 export type ActiveTabExtraction =
   | { status: 'success'; result: ExtractionResult }
@@ -113,6 +114,14 @@ function inspectPage() {
       .slice(0, 20),
     jobSectionText,
     jobDescriptionText,
+    embeddedUrls: Array.from(
+      document.querySelectorAll<HTMLIFrameElement | HTMLScriptElement>(
+        'iframe[src], script[src]',
+      ),
+      (element) => element.src,
+    )
+      .filter((url) => /^https?:\/\//i.test(url))
+      .slice(0, 100),
     canonicalUrl: document
       .querySelector<HTMLLinkElement>('link[rel="canonical"]')
       ?.href.trim(),
@@ -147,7 +156,8 @@ export async function extractFromActiveTab(): Promise<ActiveTabExtraction> {
       return { status: 'error', message: 'The page returned data in an unexpected format.' };
     }
 
-    return { status: 'success', result: parseJobPage(parsedContext.data) };
+    const context = await enrichEmbeddedJob(parsedContext.data);
+    return { status: 'success', result: parseJobPage(context) };
   } catch (error) {
     const detail = error instanceof Error ? error.message : 'Unknown browser error';
     return { status: 'error', message: `Could not inspect this page: ${detail}` };

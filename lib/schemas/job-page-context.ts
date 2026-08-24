@@ -10,6 +10,14 @@ export const JobPageContextSchema = z.object({
   bodyText: z.string().optional(),
   jobSectionText: z.string().optional(),
   jobDescriptionText: z.string().optional(),
+  embeddedUrls: z.array(z.url()).optional(),
+  embeddedJob: z.object({
+    company: z.string(),
+    position: z.string(),
+    location: z.string().optional(),
+    url: z.url().optional(),
+    description: z.string(),
+  }).optional(),
   selectedJobUrl: z.string().optional(),
   canonicalUrl: z.string().optional(),
   openGraph: z.object({
