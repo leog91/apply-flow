@@ -5,6 +5,7 @@ import { buildApplicationClipboardRow } from '@/lib/google-sheets/clipboard-row'
 import type { ApplicationCandidate } from '@/lib/schemas/application-candidate';
 import type { ExtractionMetadata } from '@/lib/parsers/types';
 import ApplicationHistory from './ApplicationHistory';
+import ChatGptJobs from './ChatGptJobs';
 import './App.css';
 
 const EMPTY_CANDIDATE: ApplicationCandidate = {
@@ -14,6 +15,7 @@ const EMPTY_CANDIDATE: ApplicationCandidate = {
 };
 
 function App() {
+  const [view, setView] = useState<'loading' | 'application' | 'chatgpt'>('loading');
   const [candidate, setCandidate] = useState(EMPTY_CANDIDATE);
   const [technologies, setTechnologies] = useState<string[]>([]);
   const [newTechnology, setNewTechnology] = useState('');
@@ -55,8 +57,38 @@ function App() {
   }
 
   useEffect(() => {
-    void detect();
+    void browser.tabs.query({ active: true, currentWindow: true })
+      .then(([tab]) => {
+        if (tab?.url && new URL(tab.url).hostname === 'chatgpt.com') {
+          setView('chatgpt');
+        } else {
+          setView('application');
+          void detect();
+        }
+      })
+      .catch(() => {
+        setView('application');
+        void detect();
+      });
   }, []);
+
+  if (view === 'chatgpt') {
+    return (
+      <main>
+        <header className="header">
+          <div>
+            <p className="eyebrow">Apply Flow</p>
+            <h1>ChatGPT Job Inbox</h1>
+          </div>
+        </header>
+        <ChatGptJobs />
+      </main>
+    );
+  }
+
+  if (view === 'loading') {
+    return <main><p className="status loading">Inspecting the current tab...</p></main>;
+  }
 
   function updateField(field: 'company' | 'position' | 'url', value: string) {
     setCopyStatus('idle');

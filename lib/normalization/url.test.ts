@@ -13,6 +13,22 @@ describe('normalizeJobUrl', () => {
   it('rejects non-web URLs', () => {
     expect(normalizeJobUrl('chrome://extensions')).toBeUndefined();
   });
+
+  it('canonicalizes fragments, query ordering, trailing slashes, and known wrappers', () => {
+    expect(
+      normalizeJobUrl(
+        'https://www.google.com/url?q=https%3A%2F%2Fjobs.example.com%2Froles%2F42%2F%3Fb%3D2%26a%3D1%26utm_id%3Dcampaign%23apply',
+      ),
+    ).toBe('https://jobs.example.com/roles/42?a=1&b=2');
+  });
+
+  it('reduces LinkedIn job URLs to their stable numeric identity', () => {
+    expect(
+      normalizeJobUrl(
+        'https://www.linkedin.com/jobs/view/platform-engineer-at-example-1234567890/?trackingId=abc',
+      ),
+    ).toBe('https://www.linkedin.com/jobs/view/1234567890');
+  });
 });
 
 describe('getSourceHost', () => {

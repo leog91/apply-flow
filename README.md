@@ -1,10 +1,10 @@
 # Apply Flow
 
-Apply Flow is a personal browser extension for inspecting job listings and checking them against a Google Sheets-based application tracker. The existing Applications, Dashboard, and Lists sheets remain the source of truth.
+Apply Flow is a personal browser extension for inspecting job listings, capturing jobs discovered in ChatGPT, and checking them against a Google Sheets-based application tracker. The spreadsheet remains the source of truth for synchronized records.
 
 ## Current Milestone
 
-The extension inspects the active job-listing page, extracts Company, Position, Location, Work Arrangement, Job URL, and explicitly mentioned technologies, and presents them as editable popup fields. Technology extraction uses a deterministic keyword catalog rather than AI. A direct, read-only Google Sheets integration can identify an exact job, a probable duplicate position, or previous applications at the company. A copy action produces a tab-separated `Applications` row for manual paste; the extension never submits or changes sheet data.
+The extension inspects the active job-listing page, extracts Company, Position, Location, Work Arrangement, Job URL, and explicitly mentioned technologies, and presents them as editable popup fields. Technology extraction uses a deterministic keyword catalog rather than AI. Google Sheets integration identifies duplicate applications and synchronizes a separate `Job Inbox` for discovered jobs. Applications are still added manually with the fixed TSV copy action; discovery never creates an application.
 
 ## Stack
 
@@ -38,7 +38,7 @@ active web page
 
 Pure extraction code lives under `lib/`, independently of React. The parser registry prefers structured job data, then Schema.org `JobPosting`, and finally generic page metadata to fill missing values. Most job platforms and company careers sites use the same standards-based path. Cross-origin embedded Greenhouse boards use their public read API because browser isolation prevents direct iframe inspection. The normalized job URL is retained as the source identifier, and its hostname is shown as secondary source metadata.
 
-The extension uses Manifest V3 `activeTab` and `scripting` permissions for page inspection, `identity` for Google OAuth, `storage` for the locally configured spreadsheet ID and short-lived Brave token, and `clipboardWrite` for the user-triggered copy action. Opening the popup grants temporary access to the selected tab, and WXT injects a small function that returns bounded page metadata and embedded resource URLs. This avoids broad website permissions and an always-running content script. Persistent host access is limited to the Google Sheets API and Greenhouse's public board API. Restricted pages such as `chrome://` cannot be inspected and are reported in the popup.
+The extension uses Manifest V3 `activeTab` and `scripting` permissions for normal page inspection, `identity` for Google OAuth, `storage` for local discovery state, and `clipboardWrite` for the user-triggered copy action. A content script is limited to `https://chatgpt.com/*` because a popup closes while the user scrolls and cannot observe newly rendered messages. ChatGPT capture is off by default; the user enables it from the popup, and an on-page indicator remains visible while the observer is active. When disabled, the observer is disconnected and message content is not scanned. It parses rendered DOM only and never calls ChatGPT APIs. Persistent API host access is limited to Google Sheets and Greenhouse's public board API. Restricted pages such as `chrome://` cannot be inspected and are reported in the popup.
 
 ## Copying an Application Row
 
@@ -46,7 +46,7 @@ After reviewing the extracted fields and technologies, click **Copy row for Shee
 
 ## Google Sheets Setup
 
-The integration reads from a sheet named `Applications`. It requests only the Google Sheets `spreadsheets.readonly` OAuth scope and fetches these ranges:
+The integration reads application history from a sheet named `Applications` and writes discovered jobs only to `Job Inbox`. It requests the Google Sheets `spreadsheets` scope; no Drive scope is used. Application-history reads use these ranges:
 
 - `Applications!A:C`: Date Applied, Company, Position
 - `Applications!H:H`: Job Post URL
@@ -60,6 +60,10 @@ To configure it:
 4. Create an OAuth client with application type **Chrome Extension**, using that extension ID.
 5. Rebuild with the public client ID: `WXT_GOOGLE_OAUTH_CLIENT_ID="CLIENT_ID.apps.googleusercontent.com" bun run build`.
 6. Reload the unpacked extension, open a job page, expand **Sheet connection**, and enter the tracker URL or spreadsheet ID.
+
+The first ChatGPT inbox sync creates the `Job Inbox` tab and its review-first A:S header if it does not exist. Existing ID-first inbox rows are migrated automatically on the next sync. Open a ChatGPT conversation, enable **Capture rendered jobs** in Apply Flow, and scroll through the messages you want ChatGPT to render. Reopen Apply Flow and choose **Sync pending jobs**. Jobs are deduplicated and queued in extension storage first, then appended in one request. Existing OAuth grants created by older read-only builds may require consent again.
+
+Only rendered assistant messages can be captured. Apply Flow does not claim that an entire conversation has been scanned, and it does not invent message timestamps when ChatGPT exposes none. See `docs/chatgpt-job-inbox.md` for the data model and synchronization rules.
 
 The OAuth client ID is build configuration, not a secret. The spreadsheet ID is stored only in `browser.storage.local`; access tokens remain in Chrome's identity token cache. Do not add credentials or tracker data to the repository.
 
@@ -85,9 +89,9 @@ The web fallback validates OAuth state and the returned scope before accepting a
 
 ## Future Milestones
 
-1. Pending/Inbox Google Sheet
+1. Job Inbox review and shortlist actions
 2. Lists sheet integration
 3. Expand the technology catalog and extraction context
 4. Broader standards-based extraction where generic metadata is insufficient
-5. Approve Pending → Applications workflow
+5. Approve Job Inbox → Applications workflow
 6. Optionally show application status directly on job pages

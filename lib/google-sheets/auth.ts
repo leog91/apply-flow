@@ -1,6 +1,5 @@
-const SHEETS_READONLY_SCOPE =
-  'https://www.googleapis.com/auth/spreadsheets.readonly';
-const SESSION_TOKEN_KEY = 'googleWebAuthToken';
+const SHEETS_SCOPE = 'https://www.googleapis.com/auth/spreadsheets';
+const SESSION_TOKEN_KEY = 'googleWebAuthTokenV2';
 const TOKEN_EXPIRY_BUFFER_MS = 60_000;
 
 interface StoredToken {
@@ -39,7 +38,7 @@ export function createGoogleWebAuthUrl(
     client_id: clientId,
     redirect_uri: redirectUri,
     response_type: 'token',
-    scope: SHEETS_READONLY_SCOPE,
+    scope: SHEETS_SCOPE,
     state,
     include_granted_scopes: 'true',
     prompt: 'select_account consent',
@@ -75,8 +74,8 @@ export function parseGoogleWebAuthResponse(
   if (!token || !Number.isFinite(expiresIn) || expiresIn <= 0) {
     throw new Error('Google did not return a valid access token.');
   }
-  if (!scopes.includes(SHEETS_READONLY_SCOPE)) {
-    throw new Error('Google did not grant read-only Sheets access.');
+  if (!scopes.includes(SHEETS_SCOPE)) {
+    throw new Error('Google did not grant Sheets read/write access.');
   }
 
   return { token, expiresAt: now + expiresIn * 1_000 };

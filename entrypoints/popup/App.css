@@ -320,3 +320,83 @@ select:focus {
 
 .extraction-details p { margin: 7px 0 0; line-height: 1.45; }
 .extraction-details[open] summary { color: #4d5d4f; }
+
+.chatgpt-jobs { margin-top: 18px; }
+
+.capture-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 11px;
+  border: 1px solid #cbd5c7;
+  border-radius: 8px;
+  padding: 9px 10px;
+  background: #eef3ea;
+  cursor: pointer;
+}
+
+.capture-toggle span { display: grid; gap: 2px; }
+.capture-toggle small { color: #687668; font-size: 10px; font-weight: 500; }
+.capture-toggle input { width: 18px; height: 18px; accent-color: #355b3b; }
+
+.inbox-counts {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 7px;
+  margin-bottom: 11px;
+}
+
+.inbox-counts div {
+  display: grid;
+  gap: 2px;
+  border: 1px solid #d8d5c9;
+  border-radius: 7px;
+  padding: 9px;
+  background: #fffef9;
+}
+
+.inbox-counts strong { color: #315137; font: 500 20px Georgia, serif; }
+.inbox-counts span { color: #777c76; font-size: 9px; text-transform: uppercase; }
+.chatgpt-jobs .history-status { margin: 0 0 11px; }
+
+.inbox-jobs {
+  display: grid;
+  gap: 6px;
+}
+
+.inbox-jobs div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 12px;
+  border-left: 3px solid #829b7d;
+  padding: 7px 9px;
+  background: #eef3ea;
+  font-size: 11px;
+}
+
+.inbox-jobs strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.inbox-jobs span { grid-column: 1; color: #667066; }
+.inbox-jobs small { grid-column: 2; grid-row: 1 / span 2; align-self: center; color: #527153; }
+
+.render-limit {
+  margin: 11px 0;
+  color: #6f756f;
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.inbox-actions { display: flex; gap: 8px; }
+.inbox-actions button {
+  border: 0;
+  border-radius: 6px;
+  padding: 8px 11px;
+  color: white;
+  background: #355b3b;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.inbox-actions button:first-child { color: #355b3b; background: #e1ebde; }
+.inbox-actions button:disabled { cursor: not-allowed; opacity: .5; }

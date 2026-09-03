@@ -8,18 +8,59 @@ const TRACKING_PARAMETERS = new Set([
   'refid',
   'trackingid',
   'trk',
+  'fbclid',
+  'gclid',
+  'msclkid',
 ]);
+
+function unwrapKnownRedirect(value: string): string {
+  try {
+    const url = new URL(value);
+    const host = url.hostname.replace(/^www\./, '');
+    if (host === 'google.com' && url.pathname === '/url') {
+      return url.searchParams.get('q') ?? url.searchParams.get('url') ?? value;
+    }
+    if (host === 'l.facebook.com' && url.pathname === '/l.php') {
+      return url.searchParams.get('u') ?? value;
+    }
+  } catch {
+    // The normalizer below handles invalid URLs.
+  }
+  return value;
+}
 
 export function normalizeJobUrl(value: string): string | undefined {
   try {
-    const url = new URL(value);
+    const url = new URL(unwrapKnownRedirect(value));
     if (url.protocol !== 'http:' && url.protocol !== 'https:') return undefined;
+    if (url.username || url.password) return undefined;
 
     for (const key of [...url.searchParams.keys()]) {
-      if (TRACKING_PARAMETERS.has(key.toLowerCase())) {
+      const normalizedKey = key.toLowerCase();
+      if (TRACKING_PARAMETERS.has(normalizedKey) || normalizedKey.startsWith('utm_')) {
         url.searchParams.delete(key);
       }
     }
+
+    const linkedInJobId = /\/jobs\/view\/(?:[^/]*-)?(\d+)(?:\/|$)/i.exec(
+      url.pathname,
+    )?.[1];
+    if (url.hostname.endsWith('linkedin.com') && linkedInJobId) {
+      url.pathname = `/jobs/view/${linkedInJobId}`;
+      url.search = '';
+    } else {
+      const sortedParameters = [...url.searchParams.entries()].sort(
+        ([leftKey, leftValue], [rightKey, rightValue]) =>
+          leftKey.localeCompare(rightKey) || leftValue.localeCompare(rightValue),
+      );
+      url.search = '';
+      for (const [key, parameterValue] of sortedParameters) {
+        url.searchParams.append(key, parameterValue);
+      }
+    }
+
+    url.hash = '';
+    if (url.pathname.length > 1) url.pathname = url.pathname.replace(/\/+$/, '');
 
     return url.toString();
   } catch {

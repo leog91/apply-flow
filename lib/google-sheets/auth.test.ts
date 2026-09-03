@@ -6,10 +6,10 @@ import {
 
 const clientId = 'synthetic-web-client.apps.googleusercontent.com';
 const redirectUri = 'https://abcdefghijklmnop.chromiumapp.org/';
-const scope = 'https://www.googleapis.com/auth/spreadsheets.readonly';
+const scope = 'https://www.googleapis.com/auth/spreadsheets';
 
 describe('createGoogleWebAuthUrl', () => {
-  it('creates a state-bound, read-only Google authorization request', () => {
+  it('creates a state-bound Google Sheets authorization request', () => {
     const url = new URL(createGoogleWebAuthUrl(clientId, redirectUri, 'state-123'));
 
     expect(url.origin + url.pathname).toBe(
@@ -63,6 +63,6 @@ describe('parseGoogleWebAuthResponse', () => {
         redirectUri,
         'expected',
       ),
-    ).toThrow('did not grant read-only Sheets access');
+    ).toThrow('did not grant Sheets read/write access');
   });
 });
