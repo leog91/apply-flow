@@ -4,10 +4,12 @@ import type { DiscoveredJob, JobInboxLocalState } from './types';
 import {
   JOB_INBOX_HEADERS,
   LEGACY_JOB_INBOX_HEADERS,
+  jobInboxRewriteRows,
   jobInboxRows,
   parseJobInboxSheet,
   parseJobInboxRows,
   planJobInboxSync,
+  reconcileRemoteInboxJobs,
 } from './sheet';
 
 function job(overrides: Partial<DiscoveredJob> = {}): DiscoveredJob {
@@ -36,18 +38,30 @@ function job(overrides: Partial<DiscoveredJob> = {}): DiscoveredJob {
 }
 
 describe('Job Inbox rows', () => {
-  it('round trips the fixed A:R schema without shifting empty cells', () => {
+  it('round trips the human-readable A:S schema without shifting empty cells', () => {
     const expected = job({ syncedAt: '2026-09-03T10:00:00.000Z' });
-    expect(parseJobInboxRows([[...JOB_INBOX_HEADERS], ...jobInboxRows([expected])])).toEqual([
-      expected,
-    ]);
+    const parsed = parseJobInboxSheet([[...JOB_INBOX_HEADERS], ...jobInboxRows([expected])]);
+    expect(parsed.jobs).toEqual([expected]);
+    expect(parsed.needsMigration).toBe(false);
   });
 
-  it('rejects a missing or reordered header', () => {
-    expect(() => parseJobInboxRows([])).toThrow('header does not match');
-    const reordered = [...JOB_INBOX_HEADERS];
-    [reordered[0], reordered[1]] = [reordered[1]!, reordered[0]!];
-    expect(() => parseJobInboxRows([reordered])).toThrow('header does not match');
+  it('maps recognized headers by name when reordered', () => {
+    const expected = job({ syncedAt: '2026-09-03T10:00:00.000Z' });
+    const headers = [...JOB_INBOX_HEADERS];
+    const row = jobInboxRows([expected])[0]!;
+    [headers[0], headers[1]] = [headers[1]!, headers[0]!];
+    [row[0], row[1]] = [row[1]!, row[0]!];
+
+    const parsed = parseJobInboxSheet([headers, row]);
+    expect(parsed.jobs).toEqual([expected]);
+    expect(parsed.needsMigration).toBe(true);
+  });
+
+  it('reports missing and duplicate headers', () => {
+    expect(() => parseJobInboxRows([])).toThrow('missing:');
+    const duplicate = [...JOB_INBOX_HEADERS];
+    duplicate[1] = 'Position';
+    expect(() => parseJobInboxRows([duplicate])).toThrow('duplicated: position');
   });
 
   it('reads the original machine-first schema and marks it for migration', () => {
@@ -60,10 +74,46 @@ describe('Job Inbox rows', () => {
 
     const parsed = parseJobInboxSheet([[...LEGACY_JOB_INBOX_HEADERS], legacyRow]);
     expect(parsed.needsMigration).toBe(true);
+    expect(parsed.sourceRowCount).toBe(1);
     expect(parsed.jobs[0]).toMatchObject({
       company: 'Synthetic Labs',
       position: 'Platform Engineer',
     });
+  });
+
+  it('removes only stale new rows from a source message and refreshes valid data', () => {
+    const validRemote = job({ company: '🟢 1. Synthetic Labs' });
+    const staleNew = job({ id: 'url:citation', position: 'LinkedIn +1' });
+    const staleReviewed = job({ id: 'url:reviewed-citation', position: 'Salary', status: 'reviewed' });
+    const localValid = job({ company: 'Synthetic Labs' });
+    const localState: JobInboxLocalState = {
+      jobs: [localValid],
+      messages: [{
+        key: 'chat-1:message-1',
+        sourceMessage: localValid.sourceMessage,
+        jobIds: [localValid.id],
+      }],
+    };
+
+    const result = reconcileRemoteInboxJobs(
+      [validRemote, staleNew, staleReviewed],
+      localState,
+    );
+
+    expect(result.changed).toBe(true);
+    expect(result.jobs).toHaveLength(2);
+    expect(result.jobs[0]?.company).toBe('Synthetic Labs');
+    expect(result.jobs[1]).toMatchObject({ id: 'url:reviewed-citation', status: 'reviewed' });
+  });
+
+  it('pads a compact rewrite to clear stale source rows', () => {
+    const rows = jobInboxRewriteRows([job()], 3);
+
+    expect(rows).toHaveLength(4);
+    expect(rows[0]).toEqual([...JOB_INBOX_HEADERS]);
+    expect(rows[1]?.[1]).toBe('Synthetic Labs');
+    expect(rows[2]).toEqual(Array.from({ length: JOB_INBOX_HEADERS.length }, () => ''));
+    expect(rows[3]).toEqual(Array.from({ length: JOB_INBOX_HEADERS.length }, () => ''));
   });
 });
 

@@ -6,6 +6,7 @@ import {
   JOB_INBOX_RANGE,
   JOB_INBOX_SHEET_NAME,
   jobInboxRows,
+  jobInboxRewriteRows,
   parseJobInboxSheet,
 } from '@/lib/job-inbox/sheet';
 import type { DiscoveredJob } from '@/lib/job-inbox/types';
@@ -73,6 +74,7 @@ export interface JobInboxSyncSnapshot {
   applications: ApplicationHistoryRecord[];
   inboxJobs: DiscoveredJob[];
   inboxNeedsMigration: boolean;
+  inboxSourceRowCount: number;
 }
 
 export function parseJobInboxSyncResponse(response: unknown): JobInboxSyncSnapshot {
@@ -85,6 +87,7 @@ export function parseJobInboxSyncResponse(response: unknown): JobInboxSyncSnapsh
     applications: parseApplicationHistoryRanges(parsed.data.valueRanges.slice(0, 3)),
     inboxJobs: inbox.jobs,
     inboxNeedsMigration: inbox.needsMigration,
+    inboxSourceRowCount: inbox.sourceRowCount,
   };
 }
 
@@ -233,9 +236,11 @@ export async function appendJobInboxJobs(
 export async function rewriteJobInboxSheet(
   spreadsheetId: string,
   jobs: DiscoveredJob[],
+  sourceRowCount = jobs.length,
 ): Promise<void> {
   const token = await getGoogleAuthToken(true);
   const query = new URLSearchParams({ valueInputOption: 'RAW' });
+  const values = jobInboxRewriteRows(jobs, sourceRowCount);
   const response = await fetch(
     `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(JOB_INBOX_RANGE)}?${query}`,
     {
@@ -246,7 +251,7 @@ export async function rewriteJobInboxSheet(
       },
       body: JSON.stringify({
         majorDimension: 'ROWS',
-        values: [[...JOB_INBOX_HEADERS], ...jobInboxRows(jobs)],
+        values,
       }),
     },
   );

@@ -6,6 +6,9 @@ import type {
   TimestampPrecision,
 } from '@/lib/job-inbox/types';
 import { normalizeJobUrl } from '@/lib/normalization/url';
+import { cleanChatGptCompanyLabel } from './normalize';
+
+export { cleanChatGptCompanyLabel } from './normalize';
 
 export interface ChatGptMessageLink {
   text: string;
@@ -99,6 +102,9 @@ function likelyJobLink(link: ChatGptMessageLink, block: ChatGptMessageBlock): bo
   const linkText = clean(link.text);
   const linkHasRole = ROLE_WORD.test(linkText);
   const linkHasAction = ACTION_LINK_TEXT.test(linkText);
+  const descriptiveRoleLink = linkHasRole &&
+    linkText.split(/\s+/).length >= 3 &&
+    /\s(?:at|@)\s|\s[—–|]\s/i.test(linkText);
   if (CITATION_LINK_TEXT.test(linkText) || (!linkHasRole && !linkHasAction)) return false;
   const knownProvider = /(^|\.)(?:linkedin\.com|indeed\.com|greenhouse\.io|lever\.co|ashbyhq\.com|myworkdayjobs\.com|smartrecruiters\.com|workable\.com)$/.test(hostname);
   const providerDetail =
@@ -109,7 +115,12 @@ function likelyJobLink(link: ChatGptMessageLink, block: ChatGptMessageBlock): bo
   return (
     (linkHasRole && (
       (knownProvider && providerDetail) ||
-      (!knownProvider && (JOB_DETAIL_PATH.test(url.pathname) || jobSubdomain || structuredRole))
+      (!knownProvider && (
+        JOB_DETAIL_PATH.test(url.pathname) ||
+        jobSubdomain ||
+        structuredRole ||
+        descriptiveRoleLink
+      ))
     )) ||
     (linkHasAction && structuredRole && (
       providerDetail ||
@@ -129,7 +140,7 @@ function fieldsFromBlock(
   const companyFirst = parts.length >= 2 && ROLE_WORD.test(parts[1] ?? '');
   if (companyFirst) {
     return {
-      company: clean((parts[0] ?? '').replace(/^\d+[.)]\s*/, '')),
+      company: cleanChatGptCompanyLabel(parts[0] ?? ''),
       position: parts[1] ?? '',
       location: parts.length > 2 && !ACTION_LINK_TEXT.test(parts[2] ?? '')
         ? parts[2]
@@ -146,7 +157,7 @@ function fieldsFromBlock(
     );
     return {
       position: clean(atMatch[1] ?? ''),
-      company: clean(atMatch[2] ?? ''),
+      company: cleanChatGptCompanyLabel(atMatch[2] ?? ''),
       location: location || undefined,
     };
   }
@@ -154,7 +165,7 @@ function fieldsFromBlock(
   if (emphasized.length >= 2) {
     return {
       position: emphasized[0] ?? '',
-      company: emphasized[1] ?? '',
+      company: cleanChatGptCompanyLabel(emphasized[1] ?? ''),
       location: parts.find((part) => !emphasized.includes(part) && part !== link.text),
     };
   }

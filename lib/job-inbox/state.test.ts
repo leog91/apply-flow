@@ -149,4 +149,17 @@ describe('job inbox local state', () => {
     expect(cleaned.jobs).toEqual([]);
     expect(cleaned.messages[0]?.jobIds).toEqual([]);
   });
+
+  it('replaces a decorated company label after a cleaner reparse', async () => {
+    const first = await parsedMessage();
+    first.jobs[0] = { ...first.jobs[0]!, company: '🟢 1. Synthetic Labs' };
+    const clean = await parsedMessage();
+    const state = mergeJobInboxState(
+      mergeJobInboxState(EMPTY_JOB_INBOX_STATE, first.jobs, first.message),
+      clean.jobs,
+      clean.message,
+    );
+
+    expect(state.jobs[0]?.company).toBe('Synthetic Labs');
+  });
 });

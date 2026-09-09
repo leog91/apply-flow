@@ -4,7 +4,7 @@ Apply Flow is a personal browser extension for inspecting job listings, capturin
 
 ## Current Milestone
 
-The extension inspects the active job-listing page, extracts Company, Position, Location, Work Arrangement, Job URL, and explicitly mentioned technologies, and presents them as editable popup fields. Technology extraction uses a deterministic keyword catalog rather than AI. Google Sheets integration identifies duplicate applications and synchronizes a separate `Job Inbox` for discovered jobs. Applications are still added manually with the fixed TSV copy action; discovery never creates an application.
+The extension inspects the active job-listing page, extracts Company, Position, Location, Work Arrangement, Job URL, and explicitly mentioned technologies, and presents them as editable side-panel or popup fields. Technology extraction uses a deterministic keyword catalog rather than AI. Google Sheets integration identifies duplicate applications and synchronizes a separate `Job Inbox` for discovered jobs. Applications are still added manually with the fixed TSV copy action; discovery never creates an application.
 
 ## Stack
 
@@ -33,12 +33,12 @@ active web page
 → active-tab page inspection
 → layered extraction/parser registry
 → Zod-validated ApplicationCandidate
-→ editable React popup
+→ editable React side panel or popup
 ```
 
 Pure extraction code lives under `lib/`, independently of React. The parser registry prefers structured job data, then Schema.org `JobPosting`, and finally generic page metadata to fill missing values. Most job platforms and company careers sites use the same standards-based path. Cross-origin embedded Greenhouse boards use their public read API because browser isolation prevents direct iframe inspection. The normalized job URL is retained as the source identifier, and its hostname is shown as secondary source metadata.
 
-The extension uses Manifest V3 `activeTab` and `scripting` permissions for normal page inspection, `identity` for Google OAuth, `storage` for local discovery state, and `clipboardWrite` for the user-triggered copy action. A content script is limited to `https://chatgpt.com/*` because a popup closes while the user scrolls and cannot observe newly rendered messages. ChatGPT capture is off by default; the user enables it from the popup, and an on-page indicator remains visible while the observer is active. When disabled, the observer is disconnected and message content is not scanned. It parses rendered DOM only and never calls ChatGPT APIs. Persistent API host access is limited to Google Sheets and Greenhouse's public board API. Restricted pages such as `chrome://` cannot be inspected and are reported in the popup.
+The extension uses Manifest V3 `activeTab` and `scripting` permissions for normal page inspection, `tabs` to limit side-panel availability by the active tab URL, `identity` for Google OAuth, `storage` for local discovery state, and `clipboardWrite` for the user-triggered copy action. The toolbar opens a persistent browser side panel on LinkedIn and ChatGPT by default; **Open on all websites** makes it available elsewhere, while disabling **Use side panel** restores the popup. LinkedIn host access lets the open panel refresh after LinkedIn navigations without another toolbar click. Other normal job pages are inspected through temporary `activeTab` access, so no all-sites content script or broad host access is added. A content script is limited to `https://chatgpt.com/*` because the extension UI cannot observe newly rendered messages while the user scrolls. ChatGPT capture is on by default, and an on-page indicator remains visible while the observer is active. Its separate toggle or the master **Apply Flow enabled** toggle disconnects the observer and stops reading message DOM without deleting captured jobs. It parses rendered DOM only and never calls ChatGPT APIs. Persistent API host access is limited to Google Sheets and Greenhouse's public board API. Restricted pages such as `chrome://` cannot be inspected and are reported in the extension UI.
 
 ## Copying an Application Row
 
@@ -61,7 +61,7 @@ To configure it:
 5. Rebuild with the public client ID: `WXT_GOOGLE_OAUTH_CLIENT_ID="CLIENT_ID.apps.googleusercontent.com" bun run build`.
 6. Reload the unpacked extension, open a job page, expand **Sheet connection**, and enter the tracker URL or spreadsheet ID.
 
-The first ChatGPT inbox sync creates the `Job Inbox` tab and its review-first A:S header if it does not exist. Existing ID-first inbox rows are migrated automatically on the next sync. Open a ChatGPT conversation, enable **Capture rendered jobs** in Apply Flow, and scroll through the messages you want ChatGPT to render. Reopen Apply Flow and choose **Sync pending jobs**. Jobs are deduplicated and queued in extension storage first, then appended in one request. Existing OAuth grants created by older read-only builds may require consent again.
+The first ChatGPT inbox sync creates the `Job Inbox` tab and its review-first A:S header if it does not exist. Human-readable, snake-case, and reordered recognized headers are mapped by name; existing ID-first inbox rows are migrated automatically on the next sync. Open a ChatGPT conversation and scroll through the messages you want ChatGPT to render. Reopen Apply Flow and choose **Sync pending jobs**. Jobs are deduplicated and queued in extension storage first, then appended in one request. Existing OAuth grants created by older read-only builds may require consent again.
 
 Only rendered assistant messages can be captured. Apply Flow does not claim that an entire conversation has been scanned, and it does not invent message timestamps when ChatGPT exposes none. See `docs/chatgpt-job-inbox.md` for the data model and synchronization rules.
 

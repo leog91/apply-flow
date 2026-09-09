@@ -12,7 +12,7 @@ import {
   saveGoogleSheetsSettings,
 } from '@/lib/google-sheets/settings';
 import { getJobInboxState } from '@/lib/job-inbox/state';
-import { planJobInboxSync } from '@/lib/job-inbox/sheet';
+import { planJobInboxSync, reconcileRemoteInboxJobs } from '@/lib/job-inbox/sheet';
 import type { JobInboxLocalState } from '@/lib/job-inbox/types';
 import {
   getChatGptCaptureSettings,
@@ -125,25 +125,14 @@ export default function ChatGptJobs() {
       }
 
       const localState = await getJobInboxState();
-      if (snapshot.inboxNeedsMigration) {
-        const localById = new Map(localState.jobs.map((job) => [job.id, job]));
-        const referencedIds = new Set(
-          localState.messages.flatMap((sourceMessage) => sourceMessage.jobIds),
+      const remote = reconcileRemoteInboxJobs(snapshot.inboxJobs, localState);
+      snapshot.inboxJobs = remote.jobs;
+      if (snapshot.inboxNeedsMigration || remote.changed) {
+        await rewriteJobInboxSheet(
+          id,
+          snapshot.inboxJobs,
+          snapshot.inboxSourceRowCount,
         );
-        snapshot.inboxJobs = snapshot.inboxJobs.flatMap((remoteJob) => {
-          const localJob = localById.get(remoteJob.id);
-          if (localJob && !referencedIds.has(remoteJob.id) && remoteJob.status === 'new') {
-            return [];
-          }
-          return [{
-            ...(localJob ?? remoteJob),
-            status: remoteJob.status,
-            syncedAt: remoteJob.syncedAt,
-            applicationRef: remoteJob.applicationRef,
-            notes: remoteJob.notes,
-          }];
-        });
-        await rewriteJobInboxSheet(id, snapshot.inboxJobs);
       }
 
       const plan = planJobInboxSync(
@@ -219,7 +208,7 @@ export default function ChatGptJobs() {
         <div><strong>{currentJobs.length}</strong><span>detected here</span></div>
         <div><strong>{currentKnown}</strong><span>already known</span></div>
         <div><strong>{currentApplied}</strong><span>applied</span></div>
-        <div><strong>{pendingJobs.length}</strong><span>pending sync</span></div>
+        <div><strong>{pendingJobs.length}</strong><span>pending total</span></div>
       </div>
 
       <p className={`history-status ${status === 'syncing' || status === 'loading' ? 'loading' : status}`} aria-live="polite">

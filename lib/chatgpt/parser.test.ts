@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { parseChatGptMessage, parseChatGptTimestamp } from './parser';
+import {
+  cleanChatGptCompanyLabel,
+  parseChatGptMessage,
+  parseChatGptTimestamp,
+} from './parser';
 
 const baseMessage = {
   conversationUrl: 'https://chatgpt.com/c/conversation-123',
@@ -29,6 +33,13 @@ describe('parseChatGptTimestamp', () => {
     expect(parseChatGptTimestamp(['2026-09-01T08:04:32'])).toEqual({
       timestampPrecision: 'unknown',
     });
+  });
+});
+
+describe('cleanChatGptCompanyLabel', () => {
+  it('removes ranking emoji and ordinal prefixes', () => {
+    expect(cleanChatGptCompanyLabel('🟢 1. Flywire')).toBe('Flywire');
+    expect(cleanChatGptCompanyLabel('🟡 5. Maisa')).toBe('Maisa');
   });
 });
 
@@ -150,6 +161,27 @@ describe('parseChatGptMessage', () => {
     expect(result.jobs[0]).toMatchObject({
       company: 'Maisa',
       position: 'Software Engineer (Backend)',
+    });
+  });
+
+  it('accepts a descriptive role link on a company domain without a jobs path', async () => {
+    const result = await parseChatGptMessage({
+      ...baseMessage,
+      messageId: 'mobidev-message',
+      blocks: [{
+        text: 'MobiDev — Middle/Senior Back-end Developer — Java + LLM & Agentic AI',
+        emphasizedTexts: ['MobiDev — Middle/Senior Back-end Developer — Java + LLM & Agentic AI'],
+        links: [{
+          text: 'MobiDev — Middle/Senior Back-end Developer — Java + LLM & Agentic AI',
+          url: 'https://mobidev.biz/careers/middle-senior-back-end-developer',
+        }],
+      }],
+    });
+
+    expect(result.jobs).toHaveLength(1);
+    expect(result.jobs[0]).toMatchObject({
+      company: 'MobiDev',
+      position: 'Middle/Senior Back-end Developer',
     });
   });
 });

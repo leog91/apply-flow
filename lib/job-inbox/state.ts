@@ -1,4 +1,5 @@
 import { DiscoveredJobSchema, EMPTY_JOB_INBOX_STATE } from './types';
+import { cleanChatGptCompanyLabel } from '@/lib/chatgpt/normalize';
 import type {
   DiscoveredJob,
   JobInboxLocalState,
@@ -24,9 +25,14 @@ function mergeJob(existing: DiscoveredJob, incoming: DiscoveredJob): DiscoveredJ
   const rolePattern = /\b(?:engineer|developer|designer|manager|scientist|analyst|architect|consultant|specialist|lead|director|intern|administrator|programmer|devops|sre|owner|recruiter|accountant|sales|marketing|operations|qa|tester)\b/i;
   const incomingHasBetterPosition = rolePattern.test(incoming.position) &&
     !rolePattern.test(existing.position);
+  const existingCompany = cleanChatGptCompanyLabel(existing.company);
+  const incomingCompany = cleanChatGptCompanyLabel(incoming.company);
+  const incomingHasCleanerCompany = Boolean(
+    incomingCompany && existingCompany === incomingCompany && existing.company !== incomingCompany,
+  );
   return DiscoveredJobSchema.parse({
     ...existing,
-    company: incomingHasBetterPosition
+    company: incomingHasBetterPosition || incomingHasCleanerCompany
       ? incoming.company || existing.company
       : existing.company || incoming.company,
     position: incomingHasBetterPosition ? incoming.position : existing.position || incoming.position,

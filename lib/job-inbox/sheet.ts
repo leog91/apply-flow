@@ -7,25 +7,25 @@ import type { DiscoveredJob, JobInboxLocalState } from './types';
 export const JOB_INBOX_SHEET_NAME = 'Job Inbox';
 export const JOB_INBOX_RANGE = `'${JOB_INBOX_SHEET_NAME}'!A:S`;
 export const JOB_INBOX_HEADERS = [
-  'date_discovered',
-  'company',
-  'position',
-  'location',
-  'status',
-  'job_url',
-  'source_name',
-  'chatgpt_sent_date',
-  'timestamp_precision',
-  'source',
-  'conversation_url',
-  'message_id',
-  'first_seen_at',
-  'synced_at',
-  'application_ref',
-  'id',
-  'conversation_id',
-  'chatgpt_sent_at',
-  'notes',
+  'Date Discovered',
+  'Company',
+  'Position',
+  'Location',
+  'Status',
+  'Job URL',
+  'Source Name',
+  'ChatGPT Sent Date',
+  'Timestamp Precision',
+  'Source',
+  'Conversation URL',
+  'Message ID',
+  'First Seen At',
+  'Synced At',
+  'Application Ref',
+  'ID',
+  'Conversation ID',
+  'ChatGPT Sent At',
+  'Notes',
 ] as const;
 
 export const LEGACY_JOB_INBOX_HEADERS = [
@@ -42,8 +42,12 @@ function cell(row: unknown[], index: number): string {
     : '';
 }
 
-function headerMatches(header: unknown[], expected: readonly string[]): boolean {
-  return expected.every((value, index) => cell(header, index) === value);
+function normalizeHeader(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_|_$/g, '');
 }
 
 interface JobInboxColumns {
@@ -67,37 +71,68 @@ interface JobInboxColumns {
   notes: number;
 }
 
-const CURRENT_COLUMNS: JobInboxColumns = {
-  id: 15, company: 1, position: 2, location: 3, status: 4, jobUrl: 5,
-  sourceName: 6, sentDate: 7, timestampPrecision: 8, source: 9,
-  conversationUrl: 10, messageId: 11, firstSeenAt: 12, syncedAt: 13,
-  applicationRef: 14, conversationId: 16, sentAt: 17, notes: 18,
+const COLUMN_NAMES: Record<keyof JobInboxColumns, string> = {
+  id: 'id',
+  company: 'company',
+  position: 'position',
+  location: 'location',
+  status: 'status',
+  jobUrl: 'job_url',
+  sourceName: 'source_name',
+  sentDate: 'chatgpt_sent_date',
+  timestampPrecision: 'timestamp_precision',
+  source: 'source',
+  conversationUrl: 'conversation_url',
+  messageId: 'message_id',
+  firstSeenAt: 'first_seen_at',
+  syncedAt: 'synced_at',
+  applicationRef: 'application_ref',
+  conversationId: 'conversation_id',
+  sentAt: 'chatgpt_sent_at',
+  notes: 'notes',
 };
 
-const LEGACY_COLUMNS: JobInboxColumns = {
-  id: 0, company: 1, position: 2, location: 3, status: 15, jobUrl: 4,
-  sourceName: 6, sentDate: 11, timestampPrecision: 12, source: 5,
-  conversationUrl: 7, messageId: 9, firstSeenAt: 13, syncedAt: 14,
-  applicationRef: 16, conversationId: 8, sentAt: 10, notes: 17,
-};
+function columnsFromHeader(header: unknown[]): {
+  columns: JobInboxColumns;
+  needsMigration: boolean;
+} {
+  const indexes = new Map<string, number>();
+  const duplicates = new Set<string>();
+  for (let index = 0; index < header.length; index += 1) {
+    const name = normalizeHeader(cell(header, index));
+    if (!name) continue;
+    if (indexes.has(name)) duplicates.add(name);
+    else indexes.set(name, index);
+  }
+
+  const missing = Object.values(COLUMN_NAMES).filter((name) => !indexes.has(name));
+  if (missing.length > 0 || duplicates.size > 0) {
+    const details = [
+      missing.length > 0 ? `missing: ${missing.join(', ')}` : '',
+      duplicates.size > 0 ? `duplicated: ${[...duplicates].join(', ')}` : '',
+    ].filter(Boolean).join('; ');
+    throw new Error(`The ${JOB_INBOX_SHEET_NAME} header is invalid (${details}).`);
+  }
+
+  const columns = Object.fromEntries(
+    Object.entries(COLUMN_NAMES).map(([property, name]) => [property, indexes.get(name)!]),
+  ) as unknown as JobInboxColumns;
+  const preferredOrder = JOB_INBOX_HEADERS.map(normalizeHeader);
+  const actualOrder = header.map((_, index) => normalizeHeader(cell(header, index)));
+  const needsMigration = preferredOrder.some((name, index) => actualOrder[index] !== name);
+  return { columns, needsMigration };
+}
 
 export interface ParsedJobInboxSheet {
   jobs: DiscoveredJob[];
   needsMigration: boolean;
+  sourceRowCount: number;
 }
 
 export function parseJobInboxSheet(values: unknown[][] | undefined): ParsedJobInboxSheet {
   const rows = values ?? [];
   const header = rows[0] ?? [];
-  const needsMigration = headerMatches(header, LEGACY_JOB_INBOX_HEADERS);
-  const columns = headerMatches(header, JOB_INBOX_HEADERS)
-    ? CURRENT_COLUMNS
-    : needsMigration
-      ? LEGACY_COLUMNS
-      : undefined;
-  if (!columns) {
-    throw new Error(`The ${JOB_INBOX_SHEET_NAME} header does not match Apply Flow's schema.`);
-  }
+  const { columns, needsMigration } = columnsFromHeader(header);
 
   const jobs = rows.slice(1).flatMap((row, index) => {
     const id = cell(row, columns.id);
@@ -133,7 +168,7 @@ export function parseJobInboxSheet(values: unknown[][] | undefined): ParsedJobIn
     }
     return [parsed.data];
   });
-  return { jobs, needsMigration };
+  return { jobs, needsMigration, sourceRowCount: Math.max(0, rows.length - 1) };
 }
 
 export function parseJobInboxRows(values: unknown[][] | undefined): DiscoveredJob[] {
@@ -162,6 +197,68 @@ export function jobInboxRows(jobs: DiscoveredJob[]): string[][] {
     job.sourceMessage.sentAt ?? '',
     job.notes ?? '',
   ]);
+}
+
+export function jobInboxRewriteRows(
+  jobs: DiscoveredJob[],
+  sourceRowCount: number,
+): string[][] {
+  const values = [[...JOB_INBOX_HEADERS], ...jobInboxRows(jobs)];
+  while (values.length < sourceRowCount + 1) {
+    values.push(Array.from({ length: JOB_INBOX_HEADERS.length }, () => ''));
+  }
+  return values;
+}
+
+export interface ReconciledRemoteInbox {
+  jobs: DiscoveredJob[];
+  changed: boolean;
+}
+
+export function reconcileRemoteInboxJobs(
+  remoteJobs: DiscoveredJob[],
+  localState: JobInboxLocalState,
+): ReconciledRemoteInbox {
+  const localById = new Map(localState.jobs.map((job) => [job.id, job]));
+  const messageJobs = new Map(
+    localState.messages.flatMap((message) => {
+      const source = message.sourceMessage;
+      return source.messageId
+        ? [[`${source.conversationUrl}\n${source.messageId}`, new Set(message.jobIds)] as const]
+        : [];
+    }),
+  );
+  let changed = false;
+  const jobs = remoteJobs.flatMap((remoteJob) => {
+    const source = remoteJob.sourceMessage;
+    const observedJobIds = source.messageId
+      ? messageJobs.get(`${source.conversationUrl}\n${source.messageId}`)
+      : undefined;
+    if (
+      remoteJob.status === 'new' &&
+      observedJobIds &&
+      !observedJobIds.has(remoteJob.id)
+    ) {
+      changed = true;
+      return [];
+    }
+
+    const localJob = localById.get(remoteJob.id);
+    if (!localJob) return [remoteJob];
+    const refreshed: DiscoveredJob = {
+      ...remoteJob,
+      company: localJob.company || remoteJob.company,
+      position: localJob.position || remoteJob.position,
+      location: localJob.location ?? remoteJob.location,
+      jobUrl: localJob.jobUrl ?? remoteJob.jobUrl,
+      canonicalUrl: localJob.canonicalUrl ?? remoteJob.canonicalUrl,
+    };
+    if (JSON.stringify(jobInboxRows([refreshed])) !== JSON.stringify(jobInboxRows([remoteJob]))) {
+      changed = true;
+    }
+    return [refreshed];
+  });
+  return { jobs, changed };
 }
 
 export interface JobInboxSyncPlan {

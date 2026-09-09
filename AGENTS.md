@@ -10,7 +10,7 @@
 
 ## Architecture
 
-- `entrypoints/popup/App.tsx` is the only UI entrypoint. Keep parsing, normalization, Sheets mapping, and other testable logic under `lib/`, not in React components.
+- `entrypoints/popup/App.tsx` is shared by the popup and side-panel UI entrypoints. Keep parsing, normalization, Sheets mapping, and other testable logic under `lib/`, not in React components.
 - The popup calls `browser.scripting.executeScript` from `lib/extraction/inspect-active-tab.ts`; `inspectPage` runs in the active tab and therefore must remain self-contained rather than closing over module imports or outer variables. Keep its returned payload bounded and synchronized with `JobPageContextSchema`.
 - Extraction flows through `enrichEmbeddedJob` and then `parseJobPage`. `parserRegistry` order is precedence: embedded board, Schema.org `JobPosting`, then generic metadata; the first defined value for each candidate field wins. Add or reorder parsers only with registry tests covering layered results.
 - Generic extraction deliberately scopes technology detection to a job section/description before falling back to broader page text. Do not replace this with whole-page scanning, which captures sidebar, company, and similar-job noise.
@@ -18,10 +18,10 @@
 
 ## Browser And Sheets Constraints
 
-- Preserve the narrow Manifest V3 model in `wxt.config.ts`: normal sites use temporary `activeTab`/`scripting` inspection; the only persistent content script is scoped to `https://chatgpt.com/*`. API host access remains limited to Sheets and Greenhouse unless a feature demonstrably requires more.
-- Application history is read-only and comes from `Applications!A:C`, `H:H`, and `L:O`; row parsing depends on those ranges staying aligned and skips row 1. Discovery writes are isolated to `Job Inbox!A:S` and must preserve the exact header contract in `lib/job-inbox/sheet.ts`.
+- Preserve the narrow Manifest V3 model in `wxt.config.ts`: normal sites use temporary `activeTab`/`scripting` inspection, LinkedIn host access supports side-panel refreshes across navigation, `tabs` is used only to gate side-panel availability by URL, and the only persistent content script is scoped to `https://chatgpt.com/*`. API host access remains limited to Sheets and Greenhouse unless a feature demonstrably requires more.
+- Application history is read-only and comes from `Applications!A:C`, `H:H`, and `L:O`; row parsing depends on those ranges staying aligned and skips row 1. Discovery writes are isolated to `Job Inbox!A:S`; map its columns by normalized header name and preserve the canonical human-readable header contract in `lib/job-inbox/sheet.ts`.
 - Clipboard output in `lib/google-sheets/clipboard-row.ts` is a fixed 16-column A:P TSV with `Applied` in column L. Preserve empty placeholders when changing it and update clipboard-row tests.
 - OAuth is build-time configuration with the Sheets read/write scope: `WXT_GOOGLE_OAUTH_CLIENT_ID` supplies Chrome's manifest OAuth client, while `WXT_GOOGLE_WEB_OAUTH_CLIENT_ID` enables Brave's `launchWebAuthFlow` fallback. `.env.local` is ignored by Git; never commit credentials, spreadsheet IDs, tokens, or tracker data.
 - Chrome tokens stay in the identity cache, Brave tokens in `browser.storage.session`, and only the spreadsheet ID is persisted in `browser.storage.local`.
-- ChatGPT capture is opt-in and off by default. When disabled, keep its observer disconnected and do not inspect message DOM; while enabled, keep scanning defensive and debounced, never infer unrendered messages, never substitute `firstSeenAt` for a missing source timestamp, and keep Sheets writes user-triggered and batched.
+- ChatGPT capture is on by default. When capture or Apply Flow is disabled, keep its observer disconnected and do not inspect message DOM; while enabled, keep scanning defensive and debounced, never infer unrendered messages, never substitute `firstSeenAt` for a missing source timestamp, and keep Sheets writes user-triggered and batched.
 - Route job-inbox mutations through `entrypoints/background.ts`; direct popup/content-script read-modify-write cycles can lose jobs when multiple ChatGPT tabs scan concurrently.
