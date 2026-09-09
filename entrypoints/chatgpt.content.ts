@@ -4,6 +4,10 @@ import {
   CHATGPT_CAPTURE_SETTINGS_STORAGE_KEY,
   getChatGptCaptureSettings,
 } from '@/lib/chatgpt/settings';
+import {
+  APPLY_FLOW_SETTINGS_STORAGE_KEY,
+  getApplyFlowSettings,
+} from '@/lib/settings';
 
 const GET_SCAN_MESSAGE = 'apply-flow:get-chatgpt-scan';
 const SET_CAPTURE_MESSAGE = 'apply-flow:set-chatgpt-capture';
@@ -57,6 +61,7 @@ export default defineContentScript({
         const snapshots = snapshotRenderedChatGptMessages(document);
         const parsedMessages = [];
         for (const snapshot of snapshots) {
+          if (!enabled) return;
           try {
             const parsed = await parseChatGptMessage(snapshot);
             parsedMessages.push(parsed);
@@ -64,7 +69,7 @@ export default defineContentScript({
             // Ignore one malformed message while continuing with other rendered turns.
           }
         }
-        if (parsedMessages.length > 0) {
+        if (enabled && parsedMessages.length > 0) {
           await browser.runtime.sendMessage({
             type: 'apply-flow:merge-chatgpt-messages',
             parsedMessages,
@@ -89,17 +94,24 @@ export default defineContentScript({
       void scanRenderedMessages();
     }
 
-    void getChatGptCaptureSettings().then((settings) => {
-      if (settings.enabled) startCapture();
-    });
+    async function syncCaptureState() {
+      const [applyFlowSettings, captureSettings] = await Promise.all([
+        getApplyFlowSettings(),
+        getChatGptCaptureSettings(),
+      ]);
+      if (applyFlowSettings.enabled && captureSettings.enabled) startCapture();
+      else stopCapture();
+    }
+
+    void syncCaptureState();
 
     browser.storage.onChanged.addListener((changes, areaName) => {
-      if (areaName !== 'local' || !changes[CHATGPT_CAPTURE_SETTINGS_STORAGE_KEY]) return;
-      const next = changes[CHATGPT_CAPTURE_SETTINGS_STORAGE_KEY].newValue as
-        | { enabled?: boolean }
-        | undefined;
-      if (next?.enabled) startCapture();
-      else stopCapture();
+      if (
+        areaName !== 'local' ||
+        (!changes[CHATGPT_CAPTURE_SETTINGS_STORAGE_KEY] &&
+          !changes[APPLY_FLOW_SETTINGS_STORAGE_KEY])
+      ) return;
+      void syncCaptureState();
     });
 
     browser.runtime.onMessage.addListener((message: unknown) => {
@@ -107,11 +119,16 @@ export default defineContentScript({
         ? (message as { type?: string }).type
         : undefined;
       if (type === SET_CAPTURE_MESSAGE) {
-        if ((message as { enabled?: boolean }).enabled) startCapture();
-        else stopCapture();
-        return browser.runtime.sendMessage({
-          type: 'apply-flow:get-job-inbox-state',
-        }).then((state) => ({ enabled, state }));
+        return getApplyFlowSettings().then(async (settings) => {
+          if (settings.enabled && (message as { enabled?: boolean }).enabled) startCapture();
+          else stopCapture();
+          return {
+            enabled,
+            state: await browser.runtime.sendMessage({
+              type: 'apply-flow:get-job-inbox-state',
+            }),
+          };
+        });
       }
       if (
         type !== GET_SCAN_MESSAGE

@@ -5,7 +5,7 @@ export interface ChatGptCaptureSettings {
 }
 
 export const DEFAULT_CHATGPT_CAPTURE_SETTINGS: ChatGptCaptureSettings = {
-  enabled: false,
+  enabled: true,
 };
 
 export async function getChatGptCaptureSettings(): Promise<ChatGptCaptureSettings> {

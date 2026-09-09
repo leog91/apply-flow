@@ -1,9 +1,15 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { extractFromActiveTab } from '@/lib/extraction/inspect-active-tab';
 import { groupTechnologies } from '@/lib/extraction/technology-keywords';
 import { buildApplicationClipboardRow } from '@/lib/google-sheets/clipboard-row';
 import type { ApplicationCandidate } from '@/lib/schemas/application-candidate';
 import type { ExtractionMetadata } from '@/lib/parsers/types';
+import {
+  APPLY_FLOW_SETTINGS_STORAGE_KEY,
+  getApplyFlowSettings,
+  saveApplyFlowSettings,
+  type ApplyFlowSettings,
+} from '@/lib/settings';
 import ApplicationHistory from './ApplicationHistory';
 import ChatGptJobs from './ChatGptJobs';
 import './App.css';
@@ -14,8 +20,13 @@ const EMPTY_CANDIDATE: ApplicationCandidate = {
   url: '',
 };
 
-function App() {
+interface AppProps {
+  surface?: 'popup' | 'sidepanel';
+}
+
+function App({ surface = 'popup' }: AppProps) {
   const [view, setView] = useState<'loading' | 'application' | 'chatgpt'>('loading');
+  const [settings, setSettings] = useState<ApplyFlowSettings>();
   const [candidate, setCandidate] = useState(EMPTY_CANDIDATE);
   const [technologies, setTechnologies] = useState<string[]>([]);
   const [newTechnology, setNewTechnology] = useState('');
@@ -25,12 +36,15 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [historyLookupKey, setHistoryLookupKey] = useState(0);
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'error'>('idle');
+  const detectionRequest = useRef(0);
 
   async function detect() {
+    const request = ++detectionRequest.current;
     setLoading(true);
     setStatusKind('loading');
     setMessage('Inspecting the current page...');
     const extraction = await extractFromActiveTab();
+    if (request !== detectionRequest.current) return;
 
     if (extraction.status === 'success') {
       setCandidate(extraction.result.candidate);
@@ -57,20 +71,172 @@ function App() {
   }
 
   useEffect(() => {
-    void browser.tabs.query({ active: true, currentWindow: true })
-      .then(([tab]) => {
-        if (tab?.url && new URL(tab.url).hostname === 'chatgpt.com') {
-          setView('chatgpt');
-        } else {
-          setView('application');
-          void detect();
-        }
-      })
-      .catch(() => {
-        setView('application');
-        void detect();
+    let cancelled = false;
+    const handleSettingsChange = (
+      changes: Record<string, Browser.storage.StorageChange>,
+      areaName: string,
+    ) => {
+      if (areaName !== 'local' || !changes[APPLY_FLOW_SETTINGS_STORAGE_KEY]) return;
+      void getApplyFlowSettings().then((next) => {
+        if (!cancelled) setSettings(next);
       });
+    };
+
+    void getApplyFlowSettings().then((initial) => {
+      if (!cancelled) setSettings(initial);
+    });
+    browser.storage.onChanged.addListener(handleSettingsChange);
+    return () => {
+      cancelled = true;
+      browser.storage.onChanged.removeListener(handleSettingsChange);
+    };
   }, []);
+
+  useEffect(() => {
+    if (!settings) return;
+    const enabled = settings.enabled;
+    let cancelled = false;
+    let inspectionTimer: ReturnType<typeof setTimeout> | undefined;
+
+    async function inspectActiveTab() {
+      try {
+        const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
+        if (cancelled) return;
+        if (tab?.url && new URL(tab.url).hostname === 'chatgpt.com') {
+          detectionRequest.current += 1;
+          setLoading(false);
+          setView('chatgpt');
+          return;
+        }
+        setView('application');
+        if (enabled) {
+          await detect();
+        } else {
+          detectionRequest.current += 1;
+          setLoading(false);
+        }
+      } catch {
+        if (cancelled) return;
+        setView('application');
+        if (enabled) await detect();
+      }
+    }
+
+    if (surface !== 'sidepanel') {
+      void inspectActiveTab();
+      return () => {
+        cancelled = true;
+        detectionRequest.current += 1;
+      };
+    }
+
+    function scheduleInspection() {
+      if (inspectionTimer) clearTimeout(inspectionTimer);
+      detectionRequest.current += 1;
+      setLoading(true);
+      setStatusKind('loading');
+      setMessage('Waiting for the current page to finish loading...');
+      setView('loading');
+      inspectionTimer = setTimeout(() => void inspectActiveTab(), 900);
+    }
+
+    scheduleInspection();
+    const handleActivated = scheduleInspection;
+    const handleUpdated = (
+      _tabId: number,
+      changeInfo: Browser.tabs.OnUpdatedInfo,
+      tab: Browser.tabs.Tab,
+    ) => {
+      if (
+        tab.active &&
+        (changeInfo.url || changeInfo.title || changeInfo.status === 'complete')
+      ) scheduleInspection();
+    };
+    browser.tabs.onActivated.addListener(handleActivated);
+    browser.tabs.onUpdated.addListener(handleUpdated);
+    return () => {
+      cancelled = true;
+      if (inspectionTimer) clearTimeout(inspectionTimer);
+      detectionRequest.current += 1;
+      browser.tabs.onActivated.removeListener(handleActivated);
+      browser.tabs.onUpdated.removeListener(handleUpdated);
+    };
+  }, [settings?.enabled, surface]);
+
+  async function updateSettings(update: Partial<ApplyFlowSettings>) {
+    if (!settings) return;
+    const next = { ...settings, ...update };
+    setSettings(next);
+    await saveApplyFlowSettings(next);
+  }
+
+  if (!settings) {
+    return <main><p className="status loading">Loading Apply Flow settings...</p></main>;
+  }
+
+  const settingsControls = (
+    <section className="extension-settings" aria-label="Apply Flow settings">
+      <label className="settings-toggle">
+        <span>
+          <strong>Apply Flow enabled</strong>
+          <small>{settings.enabled ? 'On · detection and tracking active' : 'Paused · no pages are inspected'}</small>
+        </span>
+        <input
+          type="checkbox"
+          checked={settings.enabled}
+          onChange={(event) => void updateSettings({ enabled: event.target.checked })}
+        />
+      </label>
+      <label className="settings-toggle">
+        <span>
+          <strong>Use side panel</strong>
+          <small>
+            {settings.sidePanelEnabled
+              ? 'Available on LinkedIn and ChatGPT'
+              : 'Extension icon opens the popup'}
+          </small>
+        </span>
+        <input
+          type="checkbox"
+          checked={settings.sidePanelEnabled}
+          onChange={(event) => void updateSettings({ sidePanelEnabled: event.target.checked })}
+        />
+      </label>
+      <label className="settings-toggle">
+        <span>
+          <strong>Open on all websites</strong>
+          <small>
+            {settings.sidePanelAllSites
+              ? 'Panel stays available while browsing other sites'
+              : 'Off · limited to LinkedIn and ChatGPT'}
+          </small>
+        </span>
+        <input
+          type="checkbox"
+          checked={settings.sidePanelAllSites}
+          disabled={!settings.sidePanelEnabled}
+          onChange={(event) => void updateSettings({ sidePanelAllSites: event.target.checked })}
+        />
+      </label>
+    </section>
+  );
+
+  if (!settings.enabled) {
+    return (
+      <main>
+        <header className="header">
+          <div>
+            <p className="eyebrow">Apply Flow</p>
+            <h1>Paused</h1>
+          </div>
+        </header>
+        {settingsControls}
+        <p className="paused-message">
+          Page inspection, application-history checks, ChatGPT capture, and synchronization are paused. Existing data is unchanged.
+        </p>
+      </main>
+    );
+  }
 
   if (view === 'chatgpt') {
     return (
@@ -81,6 +247,7 @@ function App() {
             <h1>ChatGPT Job Inbox</h1>
           </div>
         </header>
+        {settingsControls}
         <ChatGptJobs />
       </main>
     );
@@ -145,6 +312,8 @@ function App() {
           {loading ? 'Detecting…' : 'Refresh'}
         </button>
       </header>
+
+      {settingsControls}
 
       <p className={`status ${statusKind}`} aria-live="polite">
         {message}

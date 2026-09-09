@@ -1,0 +1,29 @@
+body {
+  min-width: 0;
+  min-height: 100vh;
+}
+
+main {
+  width: 100%;
+  min-width: 0;
+  min-height: 100vh;
+  padding: 20px 18px;
+}
+
+@media (max-width: 500px) {
+  .two-column,
+  .technology-groups,
+  .history-list {
+    grid-template-columns: 1fr;
+  }
+
+  .inbox-counts {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .copy-row-action,
+  .inbox-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
