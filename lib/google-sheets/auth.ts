@@ -7,6 +7,13 @@ interface StoredToken {
   expiresAt: number;
 }
 
+export class GoogleAuthorizationRequiredError extends Error {
+  constructor() {
+    super('Google Sheets needs a connection. Reconnect to continue.');
+    this.name = 'GoogleAuthorizationRequiredError';
+  }
+}
+
 interface BraveNavigator extends Navigator {
   brave?: {
     isBrave?: () => Promise<boolean>;
@@ -32,6 +39,7 @@ export function createGoogleWebAuthUrl(
   clientId: string,
   redirectUri: string,
   state: string,
+  interactive = true,
 ): string {
   const url = new URL('https://accounts.google.com/o/oauth2/v2/auth');
   url.search = new URLSearchParams({
@@ -41,7 +49,7 @@ export function createGoogleWebAuthUrl(
     scope: SHEETS_SCOPE,
     state,
     include_granted_scopes: 'true',
-    prompt: 'select_account consent',
+    ...(interactive ? {} : { prompt: 'none' }),
   }).toString();
   return url.toString();
 }
@@ -98,10 +106,6 @@ async function getStoredWebToken(): Promise<string | undefined> {
 async function getGoogleWebAuthToken(interactive: boolean): Promise<string> {
   const cached = await getStoredWebToken();
   if (cached) return cached;
-  if (!interactive) {
-    throw new Error('Google authorization is required. Click Check again to connect.');
-  }
-
   const clientId = import.meta.env.WXT_GOOGLE_WEB_OAUTH_CLIENT_ID?.trim();
   if (!clientId) {
     throw new Error(
@@ -109,14 +113,30 @@ async function getGoogleWebAuthToken(interactive: boolean): Promise<string> {
     );
   }
   const redirectUri = browser.identity.getRedirectURL();
-  const state = createState();
-  const responseUrl = await browser.identity.launchWebAuthFlow({
-    url: createGoogleWebAuthUrl(clientId, redirectUri, state),
-    interactive: true,
-  });
-  if (!responseUrl) throw new Error('Google authorization was cancelled.');
 
-  const token = parseGoogleWebAuthResponse(responseUrl, redirectUri, state);
+  async function authorize(showWindow: boolean): Promise<StoredToken> {
+    const state = createState();
+    const responseUrl = await browser.identity.launchWebAuthFlow({
+      url: createGoogleWebAuthUrl(clientId!, redirectUri, state, showWindow),
+      interactive: showWindow,
+      ...(!showWindow ? {
+        abortOnLoadForNonInteractive: false,
+        timeoutMsForNonInteractive: 10_000,
+      } : {}),
+    });
+    if (!responseUrl) throw new Error('Google authorization was cancelled.');
+    return parseGoogleWebAuthResponse(responseUrl, redirectUri, state);
+  }
+
+  let token: StoredToken;
+  try {
+    token = await authorize(false);
+  } catch {
+    // Google may need account selection, consent, or a fresh login. Only a
+    // user-triggered request may open an interactive authorization window.
+    if (!interactive) throw new GoogleAuthorizationRequiredError();
+    token = await authorize(true);
+  }
   await browser.storage.session.set({ [SESSION_TOKEN_KEY]: token });
   return token.token;
 }

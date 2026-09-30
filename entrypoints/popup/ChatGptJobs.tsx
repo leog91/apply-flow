@@ -12,6 +12,7 @@ import {
   saveGoogleSheetsSettings,
 } from '@/lib/google-sheets/settings';
 import { getJobInboxState } from '@/lib/job-inbox/state';
+import { GoogleAuthorizationRequiredError } from '@/lib/google-sheets/auth';
 import { planJobInboxSync, reconcileRemoteInboxJobs } from '@/lib/job-inbox/sheet';
 import type { JobInboxLocalState } from '@/lib/job-inbox/types';
 import {
@@ -36,7 +37,7 @@ export default function ChatGptJobs() {
   const [pageUrl, setPageUrl] = useState('');
   const [spreadsheetInput, setSpreadsheetInput] = useState('');
   const [spreadsheetId, setSpreadsheetId] = useState<string>();
-  const [status, setStatus] = useState<'loading' | 'ready' | 'syncing' | 'success' | 'error'>('loading');
+  const [status, setStatus] = useState<'loading' | 'ready' | 'syncing' | 'success' | 'error' | 'connection-required'>('loading');
   const [message, setMessage] = useState('Reading rendered ChatGPT messages...');
   const [captureEnabled, setCaptureEnabledState] = useState(false);
   const syncInFlight = useRef(false);
@@ -152,7 +153,7 @@ export default function ChatGptJobs() {
         `${plan.appendJobs.length} synced, ${plan.alreadyKnown} already known, ${plan.previouslyApplied} previously applied.`,
       );
     } catch (error) {
-      setStatus('error');
+      setStatus(error instanceof GoogleAuthorizationRequiredError ? 'connection-required' : 'error');
       setMessage(
         `${error instanceof Error ? error.message : 'Could not sync the Job Inbox.'} Pending jobs remain stored locally.`,
       );

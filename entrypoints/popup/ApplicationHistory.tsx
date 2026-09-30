@@ -5,6 +5,7 @@ import {
   type ApplicationHistoryRecord,
 } from '@/lib/google-sheets/application-history';
 import { readApplicationHistory } from '@/lib/google-sheets/client';
+import { GoogleAuthorizationRequiredError } from '@/lib/google-sheets/auth';
 import {
   extractSpreadsheetId,
   getGoogleSheetsSettings,
@@ -35,7 +36,7 @@ export default function ApplicationHistory({
   const [match, setMatch] = useState<ApplicationHistoryMatch>();
   const lookupRequest = useRef(0);
   const [status, setStatus] = useState<
-    'unconfigured' | 'ready' | 'loading' | 'success' | 'error'
+    'unconfigured' | 'ready' | 'loading' | 'success' | 'error' | 'connection-required'
   >('unconfigured');
   const [message, setMessage] = useState('Connect your tracker to check application history.');
 
@@ -74,7 +75,7 @@ export default function ApplicationHistory({
     } catch (error) {
       if (request !== lookupRequest.current) return;
       setMatch(undefined);
-      setStatus('error');
+      setStatus(error instanceof GoogleAuthorizationRequiredError ? 'connection-required' : 'error');
       setMessage(error instanceof Error ? error.message : 'Could not read application history.');
     }
   }
@@ -128,7 +129,7 @@ export default function ApplicationHistory({
         <p>{message}</p>
         {spreadsheetId && (candidate.company || candidate.url) && status !== 'loading' && (
           <button type="button" onClick={() => void lookup(spreadsheetId, true)}>
-            Check again
+            {status === 'connection-required' ? 'Reconnect Google Sheets' : 'Check again'}
           </button>
         )}
       </div>

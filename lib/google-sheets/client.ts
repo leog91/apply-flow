@@ -93,6 +93,18 @@ export function parseJobInboxSyncResponse(response: unknown): JobInboxSyncSnapsh
 
 export class JobInboxSheetMissingError extends Error {}
 
+async function fetchSheetsRead(url: string, interactive: boolean): Promise<Response> {
+  let token = await getGoogleAuthToken(interactive);
+  let response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+  if (response.status === 401) {
+    await invalidateGoogleAuthToken(token);
+    token = await getGoogleAuthToken(interactive);
+    response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+  }
+  if (!response.ok) await throwSheetsError(response, token, 'read');
+  return response;
+}
+
 async function throwSheetsError(
   response: Response,
   token: string,
@@ -125,14 +137,10 @@ export async function readApplicationHistory(
     query.append('ranges', range);
   }
 
-  const token = await getGoogleAuthToken(interactive);
-  const response = await fetch(
+  const response = await fetchSheetsRead(
     `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values:batchGet?${query}`,
-    { headers: { Authorization: `Bearer ${token}` } },
+    interactive,
   );
-  if (!response.ok) {
-    await throwSheetsError(response, token, 'read');
-  }
 
   return parseApplicationHistoryResponse(await response.json());
 }
@@ -150,12 +158,10 @@ export async function readJobInboxSyncSnapshot(
   ]) {
     query.append('ranges', range);
   }
-  const token = await getGoogleAuthToken(interactive);
-  const response = await fetch(
+  const response = await fetchSheetsRead(
     `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values:batchGet?${query}`,
-    { headers: { Authorization: `Bearer ${token}` } },
+    interactive,
   );
-  if (!response.ok) await throwSheetsError(response, token, 'read');
   return parseJobInboxSyncResponse(await response.json());
 }
 

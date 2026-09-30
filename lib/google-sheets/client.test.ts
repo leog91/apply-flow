@@ -1,6 +1,56 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { JOB_INBOX_HEADERS } from '@/lib/job-inbox/sheet';
-import { parseApplicationHistoryResponse, parseJobInboxSyncResponse } from './client';
+import { parseApplicationHistoryResponse, parseJobInboxSyncResponse, readApplicationHistory, readJobInboxSyncSnapshot } from './client';
+import { getGoogleAuthToken, invalidateGoogleAuthToken } from './auth';
+
+vi.mock('./auth', () => ({
+  getGoogleAuthToken: vi.fn(),
+  invalidateGoogleAuthToken: vi.fn(),
+}));
+
+describe('Sheets read token recovery', () => {
+  afterEach(() => {
+    vi.resetAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it.each([
+    ['history', readApplicationHistory, 3],
+    ['inbox', readJobInboxSyncSnapshot, 4],
+  ] as const)('retries %s once with a fresh token after a 401', async (_name, read, ranges) => {
+    vi.mocked(getGoogleAuthToken).mockResolvedValueOnce('old').mockResolvedValueOnce('fresh');
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response('{}', { status: 401 }))
+      .mockResolvedValueOnce(Response.json({ valueRanges: Array.from({ length: ranges }, (_, index) => ({
+        values: index === 3 ? [[...JOB_INBOX_HEADERS]] : [],
+      })) }));
+    vi.stubGlobal('fetch', fetchMock);
+    await read('synthetic-sheet', false);
+    expect(invalidateGoogleAuthToken).toHaveBeenCalledWith('old');
+    expect(getGoogleAuthToken).toHaveBeenNthCalledWith(2, false);
+    expect(fetchMock).toHaveBeenNthCalledWith(2, expect.any(String), {
+      headers: { Authorization: 'Bearer fresh' },
+    });
+  });
+
+  it('stops after a second unauthorized response', async () => {
+    vi.mocked(getGoogleAuthToken).mockResolvedValueOnce('old').mockResolvedValueOnce('fresh');
+    const fetchMock = vi.fn().mockImplementation(async () => new Response('{}', { status: 401 }));
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(readApplicationHistory('synthetic-sheet')).rejects.toThrow('read failed (401)');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(invalidateGoogleAuthToken).toHaveBeenNthCalledWith(2, 'fresh');
+  });
+
+  it('does not retry denied spreadsheet access', async () => {
+    vi.mocked(getGoogleAuthToken).mockResolvedValue('token');
+    const fetchMock = vi.fn().mockResolvedValue(new Response('{}', { status: 403 }));
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(readApplicationHistory('synthetic-sheet')).rejects.toThrow('denied access');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(invalidateGoogleAuthToken).not.toHaveBeenCalled();
+  });
+});
 
 describe('parseApplicationHistoryResponse', () => {
   it('aligns the three minimal ranges by sheet row', () => {

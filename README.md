@@ -69,7 +69,7 @@ The OAuth client ID is build configuration, not a secret. The spreadsheet ID is 
 
 ### Brave
 
-Brave does not provide Chrome's Google profile-token flow. Apply Flow therefore uses `identity.launchWebAuthFlow` in Brave and keeps its short-lived token in `browser.storage.session`.
+Brave does not provide Chrome's Google profile-token flow. Apply Flow therefore uses `identity.launchWebAuthFlow` in Brave and keeps its short-lived token in `browser.storage.session`. When the token expires or the browser session ends, Apply Flow first attempts a silent connection using your existing Google session. Only a user-triggered connection or sync may open a sign-in window if silent authorization fails. Normal sign-in no longer forces account selection or fresh consent; Google may still require either based on your session and grant. Sheets reads retry once after an expired-token response.
 
 1. Copy Apply Flow's ID from `brave://extensions`.
 2. In Google Auth Platform, create another OAuth client with application type **Web application**.
@@ -86,6 +86,8 @@ bun run build
 6. Reload Apply Flow from `brave://extensions` and connect again.
 
 The web fallback validates OAuth state and the returned scope before accepting a token. The Chrome Extension client remains necessary for Google Chrome; the Web application client is used only by Brave.
+
+For an already configured personal installation, rebuild and reload the existing extension in `brave://extensions`; no new OAuth client or redirect URI is needed as long as the extension ID stays the same. Brave privacy settings or an expired Google session can prevent silent reconnection; use **Reconnect Google Sheets** when prompted. The Google unverified-app warning is controlled by your OAuth project's verification status, not by token caching. Personal testing can use your account as a test user; publishing the OAuth app does not by itself remove the warning.
 
 ## Future Milestones
 
