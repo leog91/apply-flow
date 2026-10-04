@@ -15,6 +15,7 @@ export const schemaOrgParser: JobPageParser = {
         url: posting.url,
         location: posting.location,
         workMode: posting.workMode,
+        remoteEligibility: posting.remoteEligibility,
       },
       source: 'JSON-LD JobPosting',
       confidence: 'high',

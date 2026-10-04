@@ -38,11 +38,17 @@ active web page
 
 Pure extraction code lives under `lib/`, independently of React. The parser registry prefers structured job data, then Schema.org `JobPosting`, and finally generic page metadata to fill missing values. Most job platforms and company careers sites use the same standards-based path. Cross-origin embedded Greenhouse boards use their public read API because browser isolation prevents direct iframe inspection. The normalized job URL is retained as the source identifier, and its hostname is shown as secondary source metadata.
 
+Structured listings retain all advertised locations in a semicolon-separated location field. Remote listings show explicit applicant-location requirements when available, or a bounded source phrase from the job description; office locations are not treated as remote eligibility. Technology detection includes frontend state/data libraries, UI tools, full-stack data tooling, and product analytics, while avoiding ambiguous lowercase prose aliases.
+
+Application history appears before the editable fields. Matches distinguish the same job URL from a possible match based on company and normalized title; legal company suffixes and front-end/back-end/full-stack spelling variants are normalized conservatively. Relevant records are shown newest first with tracker-row links. History is cached for up to one minute in the open UI, and editing identity fields immediately recalculates matches against that snapshot. **Check again** refreshes the history after a manual Sheets paste. Failed checks do not report a clean history result. Same-listing refreshes preserve manually corrected fields and selected technologies; changing the detected listing resets the draft.
+
 The extension uses Manifest V3 `activeTab` and `scripting` permissions for normal page inspection, `tabs` to limit side-panel availability by the active tab URL, `identity` for Google OAuth, `storage` for local discovery state, and `clipboardWrite` for the user-triggered copy action. The toolbar opens a persistent browser side panel on LinkedIn and ChatGPT by default; **Open on all websites** makes it available elsewhere, while disabling **Use side panel** restores the popup. LinkedIn host access lets the open panel refresh after LinkedIn navigations without another toolbar click. Other normal job pages are inspected through temporary `activeTab` access, so no all-sites content script or broad host access is added. A content script is limited to `https://chatgpt.com/*` because the extension UI cannot observe newly rendered messages while the user scrolls. ChatGPT capture is on by default, and an on-page indicator remains visible while the observer is active. Its separate toggle or the master **Apply Flow enabled** toggle disconnects the observer and stops reading message DOM without deleting captured jobs. It parses rendered DOM only and never calls ChatGPT APIs. Persistent API host access is limited to Google Sheets and Greenhouse's public board API. Restricted pages such as `chrome://` cannot be inspected and are reported in the extension UI.
 
 ## Copying an Application Row
 
 After reviewing the extracted fields and technologies, click **Copy row for Sheets** and paste into column A of an empty `Applications` row. The copied TSV contains all A:P placeholders, today's local date, and an `Applied` stage, so populated columns remain aligned without any direct sheet write.
+
+Copying confirms clipboard success only; it does not create an application or mark the job as applied in extension history.
 
 ## Google Sheets Setup
 

@@ -3,6 +3,7 @@ import {
   extractDescriptionSection,
   inferLocation,
   inferWorkMode,
+  extractRemoteEligibility,
 } from './job-attributes';
 
 describe('extractDescriptionSection', () => {
@@ -20,6 +21,18 @@ describe('inferWorkMode', () => {
     expect(inferWorkMode('Sample City · Hybrid')).toBe('Hybrid');
     expect(inferWorkMode('Trabajo remoto desde cualquier lugar')).toBe('Remote');
     expect(inferWorkMode('Puesto presencial')).toBe('On-site');
+  });
+});
+
+describe('extractRemoteEligibility', () => {
+  it('keeps an explicit restriction as source text, including negation', () => {
+    expect(extractRemoteEligibility('Build React apps. Remote within the Netherlands only. Benefits included.')).toBe('Remote within the Netherlands only');
+    expect(extractRemoteEligibility('You must be based in Spain to work remotely.')).toBe('You must be based in Spain to work remotely');
+    expect(extractRemoteEligibility('Not remote from outside Denmark.')).toBe('Not remote from outside Denmark');
+  });
+
+  it('does not infer remote eligibility from office or marketing text', () => {
+    expect(extractRemoteEligibility('Remote-first company. Our office is in Amsterdam.')).toBeUndefined();
   });
 });
 

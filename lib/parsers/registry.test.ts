@@ -2,6 +2,18 @@ import { describe, expect, it } from 'vitest';
 import { parseJobPage } from './registry';
 
 describe('parseJobPage', () => {
+  it('keeps structured multi-location and remote eligibility ahead of generic description hints', () => {
+    const result = parseJobPage({
+      url: 'https://careers.example.test/jobs/42', title: 'Product Engineer', headings: ['Product Engineer'],
+      pageText: 'Remote from Spain', jobDescriptionText: 'Remote from Spain using TypeScript and Zustand.', openGraph: {},
+      jsonLdScripts: [JSON.stringify({ '@type': 'JobPosting', title: 'Product Engineer', jobLocationType: 'TELECOMMUTE',
+        jobLocation: [{ address: 'Amsterdam, Netherlands' }, { address: 'Barcelona, Spain' }],
+        applicantLocationRequirements: { '@type': 'Country', name: 'Netherlands' },
+      })],
+    });
+    expect(result.candidate).toMatchObject({ location: 'Amsterdam, Netherlands; Barcelona, Spain', remoteEligibility: 'Netherlands', workMode: 'Remote', stack: ['TypeScript', 'Zustand'] });
+  });
+
   it('prefers a structured job loaded by an embedded board', () => {
     const result = parseJobPage({
       url: 'https://careers.synthetic.test/job?job_id=42&source=mail',
@@ -15,7 +27,7 @@ describe('parseJobPage', () => {
         position: 'Platform Engineer',
         location: 'Example City, Spain',
         url: 'https://careers.synthetic.test/job?job_id=42',
-        description: 'Hybrid role using React, TypeScript, CSS, AWS and Node.js.',
+        description: 'Hybrid role using React, TypeScript, CSS, AWS and Node.js. You must be based in Spain.',
       },
       openGraph: { siteName: 'Synthetic Labs' },
       jsonLdScripts: [],
@@ -26,6 +38,7 @@ describe('parseJobPage', () => {
       position: 'Platform Engineer',
       location: 'Example City, Spain',
       workMode: 'Hybrid',
+      remoteEligibility: 'You must be based in Spain',
       stack: ['TypeScript', 'React', 'Node.js', 'CSS', 'AWS'],
       url: 'https://careers.synthetic.test/job?job_id=42',
     });

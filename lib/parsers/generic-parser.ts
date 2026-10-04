@@ -4,6 +4,7 @@ import {
   extractDescriptionSection,
   inferLocation,
   inferWorkMode,
+  extractRemoteEligibility,
 } from '@/lib/extraction/job-attributes';
 import type { JobPageParser } from './types';
 
@@ -144,6 +145,7 @@ export const genericParser: JobPageParser = {
         position: position || undefined,
         location,
         workMode,
+        remoteEligibility: descriptionText ? extractRemoteEligibility(descriptionText) : undefined,
         stack: stack.length > 0 ? stack : undefined,
       },
       source: embeddedPosition

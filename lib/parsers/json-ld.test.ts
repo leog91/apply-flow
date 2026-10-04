@@ -20,6 +20,22 @@ const posting = {
 };
 
 describe('extractJobPostings', () => {
+  it('preserves all unique advertised locations and explicit applicant geography', () => {
+    expect(extractJobPostings([JSON.stringify({
+      ...posting,
+      jobLocation: [
+        { address: { addressLocality: 'Amsterdam', addressCountry: 'NL' } },
+        { address: { addressLocality: 'Copenhagen', addressCountry: { name: 'Denmark' } } },
+        { address: { addressLocality: 'Amsterdam', addressCountry: 'NL' } },
+      ],
+      applicantLocationRequirements: [{ '@type': 'Country', name: 'Netherlands' }, { '@type': 'Country', name: 'Denmark' }],
+    })])[0]).toMatchObject({ location: 'Amsterdam, NL; Copenhagen, Denmark', remoteEligibility: 'Netherlands; Denmark' });
+  });
+
+  it('does not substitute office location for missing remote eligibility', () => {
+    expect(extractJobPostings([JSON.stringify(posting)])[0]?.remoteEligibility).toBeUndefined();
+  });
+
   it('extracts a single JobPosting object', () => {
     expect(extractJobPostings([JSON.stringify(posting)])).toEqual([
       {

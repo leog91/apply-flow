@@ -34,6 +34,15 @@ export function inferWorkMode(text: string): WorkMode | undefined {
   return undefined;
 }
 
+export function extractRemoteEligibility(text: string): string | undefined {
+  // Retain the source phrase instead of interpreting legal eligibility or negation.
+  const sentences = text.slice(0, 50_000).split(/[\n.!?]+/);
+  return sentences.map(cleanDisplayText).find((sentence) => sentence.length <= 300 && (
+    /\bremote\s+(?:only\s+)?(?:within|from|in|across)\b/i.test(sentence) ||
+    /\b(?:must|need to)\s+(?:be\s+)?(?:based|reside|live)\s+in\b/i.test(sentence)
+  ));
+}
+
 export function inferLocation(
   headingContext: string | undefined,
   position: string | undefined,

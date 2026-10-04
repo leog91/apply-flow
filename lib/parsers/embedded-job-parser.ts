@@ -1,4 +1,4 @@
-import { inferWorkMode } from '@/lib/extraction/job-attributes';
+import { extractRemoteEligibility, inferWorkMode } from '@/lib/extraction/job-attributes';
 import { extractTechnologyKeywords } from '@/lib/extraction/technology-keywords';
 import type { JobPageParser } from './types';
 
@@ -17,6 +17,7 @@ export const embeddedJobParser: JobPageParser = {
         location: job.location,
         url: job.url,
         workMode: inferWorkMode(job.description),
+        remoteEligibility: extractRemoteEligibility(job.description),
         stack: stack.length > 0 ? stack : undefined,
       },
       source: 'Embedded job board',

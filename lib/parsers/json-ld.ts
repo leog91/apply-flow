@@ -8,6 +8,7 @@ export interface JobPostingData {
   url?: string;
   location?: string;
   workMode?: 'Remote';
+  remoteEligibility?: string;
 }
 
 function isObject(value: unknown): value is JsonObject {
@@ -48,11 +49,16 @@ function organizationName(value: unknown): string | undefined {
 }
 
 function locationText(value: unknown): string | undefined {
-  const location = Array.isArray(value) ? value[0] : value;
+  if (Array.isArray(value)) {
+    const locations = [...new Set(value.map(locationText).filter(Boolean))];
+    return locations.join('; ') || undefined;
+  }
+  if (typeof value === 'string') return stringValue(value);
+  const location = value;
   if (!isObject(location)) return undefined;
   const address = location.address;
   if (typeof address === 'string') return stringValue(address);
-  if (!isObject(address)) return undefined;
+  if (!isObject(address)) return stringValue(location.name);
 
   const country = isObject(address.addressCountry)
     ? stringValue(address.addressCountry.name)
@@ -63,6 +69,15 @@ function locationText(value: unknown): string | undefined {
     country,
   ].filter((part): part is string => Boolean(part));
   return [...new Set(parts)].join(', ') || undefined;
+}
+
+function eligibilityText(value: unknown): string | undefined {
+  const values = Array.isArray(value) ? value : [value];
+  const names = values.flatMap((item) => {
+    const name = typeof item === 'string' ? stringValue(item) : isObject(item) ? stringValue(item.name) : undefined;
+    return name ? [name] : [];
+  });
+  return [...new Set(names)].join('; ') || undefined;
 }
 
 function isRemote(value: unknown): boolean {
@@ -89,5 +104,8 @@ export function extractJobPostings(jsonLdScripts: string[]): JobPostingData[] {
     url: stringValue(posting.url),
     location: locationText(posting.jobLocation),
     workMode: isRemote(posting.jobLocationType) ? 'Remote' : undefined,
+    ...(eligibilityText(posting.applicantLocationRequirements)
+      ? { remoteEligibility: eligibilityText(posting.applicantLocationRequirements) }
+      : {}),
   }));
 }

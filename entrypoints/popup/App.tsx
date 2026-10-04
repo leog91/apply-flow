@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { extractFromActiveTab } from '@/lib/extraction/inspect-active-tab';
 import { groupTechnologies } from '@/lib/extraction/technology-keywords';
+import { preserveDraftEdits, sameJobListing, type EditableField } from '@/lib/extraction/application-draft';
 import { buildApplicationClipboardRow } from '@/lib/google-sheets/clipboard-row';
 import type { ApplicationCandidate } from '@/lib/schemas/application-candidate';
 import type { ExtractionMetadata } from '@/lib/parsers/types';
@@ -37,6 +38,9 @@ function App({ surface = 'popup' }: AppProps) {
   const [historyLookupKey, setHistoryLookupKey] = useState(0);
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'error'>('idle');
   const detectionRequest = useRef(0);
+  const lastDetected = useRef(EMPTY_CANDIDATE);
+  const editedFields = useRef(new Set<EditableField>());
+  const editedTechnologies = useRef(false);
 
   async function detect() {
     const request = ++detectionRequest.current;
@@ -47,8 +51,18 @@ function App({ surface = 'popup' }: AppProps) {
     if (request !== detectionRequest.current) return;
 
     if (extraction.status === 'success') {
-      setCandidate(extraction.result.candidate);
-      setTechnologies(extraction.result.candidate.stack ?? []);
+      const detected = extraction.result.candidate;
+      const sameJob = sameJobListing(lastDetected.current, detected);
+      if (!sameJob) {
+        editedFields.current.clear();
+        editedTechnologies.current = false;
+        setNewTechnology('');
+        setCopyStatus('idle');
+      }
+      const edits = new Set(editedFields.current);
+      setCandidate((current) => sameJob ? preserveDraftEdits(current, detected, edits) : detected);
+      if (!sameJob || !editedTechnologies.current) setTechnologies(detected.stack ?? []);
+      lastDetected.current = detected;
       setMetadata(extraction.result.metadata);
       const detailsDetected = Boolean(
         extraction.result.candidate.company || extraction.result.candidate.position,
@@ -63,6 +77,12 @@ function App({ surface = 'popup' }: AppProps) {
       setStatusKind(detailsDetected ? 'success' : 'neutral');
       setHistoryLookupKey((current) => current + 1);
     } else {
+      setCandidate(EMPTY_CANDIDATE);
+      setTechnologies([]);
+      lastDetected.current = EMPTY_CANDIDATE;
+      editedFields.current.clear();
+      editedTechnologies.current = false;
+      setCopyStatus('idle');
       setMetadata(undefined);
       setMessage(extraction.message);
       setStatusKind(extraction.status === 'error' ? 'error' : 'neutral');
@@ -105,6 +125,7 @@ function App({ surface = 'popup' }: AppProps) {
         if (tab?.url && new URL(tab.url).hostname === 'chatgpt.com') {
           detectionRequest.current += 1;
           setLoading(false);
+          setCopyStatus('idle');
           setView('chatgpt');
           return;
         }
@@ -136,7 +157,6 @@ function App({ surface = 'popup' }: AppProps) {
       setLoading(true);
       setStatusKind('loading');
       setMessage('Waiting for the current page to finish loading...');
-      setView('loading');
       inspectionTimer = setTimeout(() => void inspectActiveTab(), 900);
     }
 
@@ -175,7 +195,8 @@ function App({ surface = 'popup' }: AppProps) {
   }
 
   const settingsControls = (
-    <section className="extension-settings" aria-label="Apply Flow settings">
+    <details className="extension-settings" open>
+      <summary>Apply Flow settings</summary>
       <label className="settings-toggle">
         <span>
           <strong>Apply Flow enabled</strong>
@@ -218,7 +239,7 @@ function App({ surface = 'popup' }: AppProps) {
           onChange={(event) => void updateSettings({ sidePanelAllSites: event.target.checked })}
         />
       </label>
-    </section>
+    </details>
   );
 
   if (!settings.enabled) {
@@ -258,6 +279,7 @@ function App({ surface = 'popup' }: AppProps) {
   }
 
   function updateField(field: 'company' | 'position' | 'url', value: string) {
+    editedFields.current.add(field);
     setCopyStatus('idle');
     setCandidate((current) => ({ ...current, [field]: value }));
   }
@@ -266,6 +288,7 @@ function App({ surface = 'popup' }: AppProps) {
     field: 'location' | 'workMode',
     value: string,
   ) {
+    editedFields.current.add(field);
     setCopyStatus('idle');
     setCandidate((current) => ({ ...current, [field]: value || undefined }));
   }
@@ -274,6 +297,7 @@ function App({ surface = 'popup' }: AppProps) {
     event.preventDefault();
     const technology = newTechnology.trim();
     if (!technology) return;
+    editedTechnologies.current = true;
     setCopyStatus('idle');
     setTechnologies((current) =>
       current.some((item) => item.toLocaleLowerCase() === technology.toLocaleLowerCase())
@@ -284,6 +308,7 @@ function App({ surface = 'popup' }: AppProps) {
   }
 
   function removeTechnology(technology: string) {
+    editedTechnologies.current = true;
     setCopyStatus('idle');
     setTechnologies((current) => current.filter((item) => item !== technology));
   }
@@ -313,11 +338,11 @@ function App({ surface = 'popup' }: AppProps) {
         </button>
       </header>
 
-      {settingsControls}
-
       <p className={`status ${statusKind}`} aria-live="polite">
         {message}
       </p>
+
+      <ApplicationHistory candidate={candidate} autoLookupKey={historyLookupKey} />
 
       <div className="fields">
         <div className="two-column">
@@ -371,15 +396,17 @@ function App({ surface = 'popup' }: AppProps) {
         </label>
       </div>
 
-      <ApplicationHistory
-        candidate={candidate}
-        autoLookupKey={historyLookupKey}
-      />
+      {candidate.workMode === 'Remote' && (
+        <p className="remote-eligibility">
+          <strong>Remote location restrictions:</strong>{' '}
+          {candidate.remoteEligibility ?? 'Not specified in the listing.'}
+        </p>
+      )}
 
       <section className="technologies" aria-labelledby="technologies-heading">
         <div className="section-heading">
           <h2 id="technologies-heading">Technologies mentioned</h2>
-          <span>{technologies.length} detected</span>
+          <span>{technologies.length} selected</span>
         </div>
         {technologyGroups.length > 0 ? (
           <div className="technology-groups">
@@ -421,7 +448,7 @@ function App({ surface = 'popup' }: AppProps) {
         <button
           type="button"
           onClick={() => void copyApplicationRow()}
-          disabled={!candidate.company && !candidate.position}
+          disabled={loading || (!candidate.company && !candidate.position)}
         >
           {copyStatus === 'copied' ? 'Row copied' : 'Copy row for Sheets'}
         </button>
@@ -441,6 +468,7 @@ function App({ surface = 'popup' }: AppProps) {
           </p>
         </details>
       )}
+      {settingsControls}
     </main>
   );
 }

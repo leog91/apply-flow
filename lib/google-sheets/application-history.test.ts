@@ -39,6 +39,23 @@ describe('normalizeComparisonValue', () => {
 });
 
 describe('matchApplicationHistory', () => {
+  it('matches legal suffix and title spelling variants across different job sites', () => {
+    const result = matchApplicationHistory(records, { company: 'Example and Company B.V.', position: 'Front-end Engineer', url: 'https://linkedin.com/jobs/view/42' });
+    expect(result.exactJob).toBeUndefined();
+    expect(result.probableJobs.map((record) => record.row)).toEqual([2]);
+  });
+
+  it('returns all relevant matches newest first without merging different roles or levels', () => {
+    const additional = [
+      { ...records[0]!, row: 4, dateApplied: '2026-09-01', url: 'https://jobs.example.test/new' },
+      { ...records[0]!, row: 5, dateApplied: '2026-09-02', position: 'Senior Frontend Engineer' },
+      { ...records[0]!, row: 6, dateApplied: '2026-09-03', company: 'Example and Company Labs' },
+    ];
+    const result = matchApplicationHistory([...records, ...additional], { company: 'Example & Company', position: 'Frontend Engineer', url: '' });
+    expect(result.probableJobs.map((record) => record.row)).toEqual([4, 2]);
+    expect(result.companyHistory.map((record) => record.row)).toEqual([5, 4, 2, 3]);
+  });
+
   it('finds an exact normalized URL and company history', () => {
     const result = matchApplicationHistory(records, {
       company: 'Example and Company',

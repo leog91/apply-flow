@@ -2,6 +2,15 @@ import { describe, expect, it } from 'vitest';
 import { buildApplicationClipboardRow } from './clipboard-row';
 
 describe('buildApplicationClipboardRow', () => {
+  it('keeps multiple locations in one cell without adding eligibility columns', () => {
+    const row = buildApplicationClipboardRow({ company: 'Example', position: 'Product Engineer', url: '', location: 'Barcelona, Spain; Amsterdam, Netherlands', remoteEligibility: 'EU only' }, ['TypeScript']).split('\t');
+    expect(row).toHaveLength(16);
+    expect(row[3]).toBe('Barcelona, Spain; Amsterdam, Netherlands');
+    expect(row[11]).toBe('Applied');
+    expect(row.slice(12)).toEqual(['', '', '', '']);
+    expect(row).not.toContain('EU only');
+  });
+
   it('creates an aligned Applications A:P row', () => {
     const row = buildApplicationClipboardRow(
       {

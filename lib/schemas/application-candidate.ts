@@ -9,6 +9,7 @@ export const ApplicationCandidateSchema = z.object({
   sourceHost: optionalText,
   location: optionalText,
   workMode: z.enum(['Remote', 'Hybrid', 'On-site']).optional(),
+  remoteEligibility: optionalText,
   language: optionalText,
   stack: z.array(z.string().trim().min(1)).optional(),
   salaryRange: optionalText,
